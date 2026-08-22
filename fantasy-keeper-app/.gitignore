@@ -1,0 +1,14 @@
+# Build output
+**/bin/
+**/obj/
+
+# Dependencies
+**/node_modules/
+**/dist/
+
+# Web server
+backend/FantasyKeeper.Api/wwwroot/
+
+# Secrets and local config
+backend/FantasyKeeper.Api/appsettings.Development.json
+secrets/
