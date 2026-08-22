@@ -1,3 +1,4 @@
+using System.Globalization;
 using FantasyKeeper.Api.Models;
 
 namespace FantasyKeeper.Api.Services;
@@ -56,9 +57,9 @@ public class KeepersService
             .Select(row => (IReadOnlyList<string>)new List<string>
             {
                 row.Player ?? "",
-                row.ContractType?.ToString() ?? "",
-                row.Salary?.ToString() ?? "",
-                row.KeeperYears?.ToString() ?? ""
+                row.ContractType?.ToString(CultureInfo.InvariantCulture) ?? "",
+                row.Salary?.ToString(CultureInfo.InvariantCulture) ?? "",
+                row.KeeperYears?.ToString(CultureInfo.InvariantCulture) ?? ""
             })
             .ToList();
 
@@ -118,9 +119,9 @@ public class KeepersService
         string Cell(int i) => i < cells.Count ? cells[i] : "";
         return new KeeperRow(
             Cell(0),
-            int.TryParse(Cell(1), out var ct) ? ct : null,
-            decimal.TryParse(Cell(2), out var salary) ? salary : null,
-            int.TryParse(Cell(3), out var years) ? years : null);
+            int.TryParse(Cell(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ct) ? ct : null,
+            decimal.TryParse(Cell(2), NumberStyles.Number, CultureInfo.InvariantCulture, out var salary) ? salary : null,
+            int.TryParse(Cell(3), NumberStyles.Integer, CultureInfo.InvariantCulture, out var years) ? years : null);
     }
 
     private static ExistingContractRow ParseExistingRow(IReadOnlyList<string> cells)
@@ -129,9 +130,9 @@ public class KeepersService
         return new ExistingContractRow(
             Cell(0),
             Cell(1),
-            decimal.TryParse(Cell(2), out var lastYear) ? lastYear : null,
-            decimal.TryParse(Cell(3), out var leagueValue) ? leagueValue : null,
-            decimal.TryParse(Cell(4), out var thisYear) ? thisYear : null);
+            decimal.TryParse(Cell(2), NumberStyles.Number, CultureInfo.InvariantCulture, out var lastYear) ? lastYear : null,
+            decimal.TryParse(Cell(3), NumberStyles.Number, CultureInfo.InvariantCulture, out var leagueValue) ? leagueValue : null,
+            decimal.TryParse(Cell(4), NumberStyles.Number, CultureInfo.InvariantCulture, out var thisYear) ? thisYear : null);
     }
 
     private Season FindSeason(string seasonId)
