@@ -69,6 +69,15 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
     }
   }
 
+  if (status === "error") {
+    return (
+      <div>
+        <p role="status">{message}</p>
+        <button onClick={() => loadKeepers(seasonId)}>Retry</button>
+      </div>
+    );
+  }
+
   if (status === "loading" || !data) {
     return <p>Loading...</p>;
   }
