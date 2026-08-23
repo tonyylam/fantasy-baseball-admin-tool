@@ -83,6 +83,8 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors();
@@ -92,6 +94,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAuthEndpoints();
 app.MapSeasonEndpoints();
 app.MapKeeperEndpoints();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
