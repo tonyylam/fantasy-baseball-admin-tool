@@ -20,8 +20,15 @@ public static class SeasonEndpoints
             var auth = authService.ResolvePin(pin);
             if (auth is null || auth.Role != AuthRole.Admin) return Results.Unauthorized();
 
-            var season = await seasonService.CreateNewSeasonAsync(request.Label);
-            return Results.Ok(season);
+            try
+            {
+                var season = await seasonService.CreateNewSeasonAsync(request.Label);
+                return Results.Ok(season);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
         });
     }
 }

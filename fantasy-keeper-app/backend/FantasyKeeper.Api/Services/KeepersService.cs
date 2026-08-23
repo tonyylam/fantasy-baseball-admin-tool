@@ -94,6 +94,10 @@ public class KeepersService
             {
                 errors.Add($"Row {i + 1}: player name is required when other fields are set.");
             }
+            else if (row.Player.TrimStart()[0] is '=' or '+' or '-' or '@')
+            {
+                errors.Add($"Row {i + 1}: player name cannot start with '=', '+', '-', or '@'.");
+            }
 
             if (row.ContractType is not (1 or 2))
             {

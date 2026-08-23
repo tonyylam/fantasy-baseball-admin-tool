@@ -62,4 +62,38 @@ public class SeasonServiceTests
         Assert.True(mappings.ContainsKey("b-squared"));
         Assert.Equal("C8:F9", mappings["b-squared"].NewContractsRange);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateNewSeasonAsync_BlankLabel_Throws(string? label)
+    {
+        var (_, _, service) = Build();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CreateNewSeasonAsync(label!));
+    }
+
+    [Fact]
+    public async Task CreateNewSeasonAsync_EmptyCommissionerEmail_SkipsShareButStillSucceeds()
+    {
+        var config = new FakeConfigStore
+        {
+            Seasons = new List<Season> { new("2026", "2026 Season", "sheet-1", "active", DateTimeOffset.UtcNow) },
+            Mappings = new Dictionary<string, Dictionary<string, TeamMapping>>
+            {
+                ["2026"] = new() { ["b-squared"] = new TeamMapping("2026 Keepers", "H8:H9", "C8:F9") }
+            }
+        };
+        var drive = new FakeDriveClient { NextCopyId = "sheet-2027" };
+        var service = new SeasonService(config, drive, "");
+
+        var newSeason = await service.CreateNewSeasonAsync("2027 Season");
+
+        Assert.Empty(drive.Shares);
+        Assert.Single(drive.Copies);
+        Assert.Equal("sheet-2027", newSeason.GoogleSheetId);
+        Assert.True(newSeason.IsActive);
+    }
 }

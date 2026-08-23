@@ -83,6 +83,13 @@ if (builder.Environment.IsDevelopment())
 
 var app = builder.Build();
 
+// Eagerly resolve config-dependent singletons so a misconfigured deployment
+// (missing AdminPin, or a bad/missing Google:ServiceAccountKeyPath when
+// Google:UseDevClients is false) fails fast at startup instead of on the
+// first HTTP request that happens to need them.
+app.Services.GetRequiredService<AuthService>();
+app.Services.GetRequiredService<ISheetsClient>();
+
 app.UseStaticFiles();
 
 if (app.Environment.IsDevelopment())
