@@ -18,11 +18,11 @@ public class KeepersService
         _configStore = configStore;
     }
 
-    public KeeperTeamData GetKeeperData(string teamId)
+    public KeeperTeamData GetKeeperData(string teamId, bool canEdit)
     {
         var team = FindTeam(teamId);
         var stored = FindStoredTeam(teamId);
-        return new KeeperTeamData(team.Name, stored.ExistingContracts, stored.NewContracts);
+        return new KeeperTeamData(team.Name, canEdit, stored.ExistingContracts, stored.NewContracts);
     }
 
     public KeeperTeamData UpdateKeeperData(string teamId, KeeperSubmission submission)
@@ -37,22 +37,27 @@ public class KeepersService
                 throw new NotFoundException($"No keeper data found for team '{teamId}'.");
             }
 
-            var errors = ValidateSubmission(submission, stored.NewContractsRows.Count);
+            var errors = ValidateSubmission(submission, stored.NewContractsRows.Count, stored.ExistingContracts.Count);
             if (errors.Count > 0)
             {
                 throw new KeeperValidationException(errors);
             }
 
-            var updatedStored = stored with { NewContracts = submission.NewContracts };
+            var deletedIndices = submission.DeletedExistingContractIndices.ToHashSet();
+            var updatedExisting = stored.ExistingContracts
+                .Select((row, i) => row with { Deleted = deletedIndices.Contains(i) })
+                .ToList();
+
+            var updatedStored = stored with { NewContracts = submission.NewContracts, ExistingContracts = updatedExisting };
             var updatedTeams = new Dictionary<string, StoredTeamKeepers>(data.Teams) { [teamId] = updatedStored };
             var updatedData = data with { Teams = updatedTeams, LastUpdatedUtc = DateTimeOffset.UtcNow };
             _store.SaveData(updatedData);
 
-            return new KeeperTeamData(team.Name, updatedStored.ExistingContracts, updatedStored.NewContracts);
+            return new KeeperTeamData(team.Name, true, updatedStored.ExistingContracts, updatedStored.NewContracts);
         }
     }
 
-    private static List<string> ValidateSubmission(KeeperSubmission submission, int expectedRows)
+    private static List<string> ValidateSubmission(KeeperSubmission submission, int expectedRows, int existingContractsCount)
     {
         var errors = new List<string>();
 
@@ -96,6 +101,14 @@ public class KeepersService
             if (row.KeeperYears is null || row.KeeperYears < 0)
             {
                 errors.Add($"Row {i + 1}: keeper years must be a non-negative number.");
+            }
+        }
+
+        foreach (var index in submission.DeletedExistingContractIndices)
+        {
+            if (index < 0 || index >= existingContractsCount)
+            {
+                errors.Add($"Existing contract index {index} is out of range.");
             }
         }
 

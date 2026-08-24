@@ -35,10 +35,11 @@ public class KeepersServiceTests
                             new("T. Story", 1, 14, 2),
                             new("", null, null, null)
                         },
-                        new List<int>(),
+                        new List<int> { 10, 11 },
                         new List<ExistingContractRow>
                         {
-                            new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m)
+                            new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m),
+                            new("Other Player", "#1 - 3/3", 5, 2m, 2m)
                         })
                 })
         };
@@ -51,13 +52,25 @@ public class KeepersServiceTests
     {
         var (_, _, service) = Build();
 
-        var data = service.GetKeeperData("b-squared");
+        var data = service.GetKeeperData("b-squared", canEdit: true);
 
         Assert.Equal("B Squared", data.TeamName);
+        Assert.True(data.CanEdit);
         Assert.Equal("T. Story", data.NewContracts[0].Player);
         Assert.Equal(1, data.NewContracts[0].ContractType);
         Assert.Equal(14, data.NewContracts[0].Salary);
         Assert.Equal("Jasson Dominguez", data.ExistingContracts[0].Player);
+        Assert.False(data.ExistingContracts[0].Deleted);
+    }
+
+    [Fact]
+    public void GetKeeperData_ReadOnlyViewer_ReturnsCanEditFalse()
+    {
+        var (_, _, service) = Build();
+
+        var data = service.GetKeeperData("b-squared", canEdit: false);
+
+        Assert.False(data.CanEdit);
     }
 
     [Fact]
@@ -67,18 +80,20 @@ public class KeepersServiceTests
         var store = new FakeKeepersDataStore();
         var service = new KeepersService(store, config);
 
-        Assert.Throws<NotFoundException>(() => service.GetKeeperData("b-squared"));
+        Assert.Throws<NotFoundException>(() => service.GetKeeperData("b-squared", canEdit: true));
     }
 
     [Fact]
     public void UpdateKeeperData_ValidSubmission_SavesAndReturnsUpdatedRows()
     {
         var (_, store, service) = Build();
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new("New Guy", 1, 10, 2),
-            new("", null, null, null)
-        });
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("New Guy", 1, 10, 2),
+                new("", null, null, null)
+            },
+            new List<int>());
 
         var result = service.UpdateKeeperData("b-squared", submission);
 
@@ -91,11 +106,13 @@ public class KeepersServiceTests
     {
         var (_, store, service) = Build();
         var before = store.Data!.LastUpdatedUtc;
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new("New Guy", 1, 10, 2),
-            new("", null, null, null)
-        });
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("New Guy", 1, 10, 2),
+                new("", null, null, null)
+            },
+            new List<int>());
 
         service.UpdateKeeperData("b-squared", submission);
 
@@ -106,11 +123,13 @@ public class KeepersServiceTests
     public void UpdateKeeperData_InvalidContractType_Throws()
     {
         var (_, _, service) = Build();
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new("New Guy", 3, 10, 2),
-            new("", null, null, null)
-        });
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("New Guy", 3, 10, 2),
+                new("", null, null, null)
+            },
+            new List<int>());
 
         Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
@@ -119,7 +138,7 @@ public class KeepersServiceTests
     public void UpdateKeeperData_WrongRowCount_Throws()
     {
         var (_, _, service) = Build();
-        var submission = new KeeperSubmission(new List<KeeperRow> { new("New Guy", 1, 10, 2) });
+        var submission = new KeeperSubmission(new List<KeeperRow> { new("New Guy", 1, 10, 2) }, new List<int>());
 
         Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
@@ -132,11 +151,13 @@ public class KeepersServiceTests
     public void UpdateKeeperData_PlayerNameStartsWithFormulaChar_Throws(string playerName)
     {
         var (_, _, service) = Build();
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new(playerName, 1, 10, 2),
-            new("", null, null, null)
-        });
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new(playerName, 1, 10, 2),
+                new("", null, null, null)
+            },
+            new List<int>());
 
         Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
@@ -145,9 +166,71 @@ public class KeepersServiceTests
     public void UpdateKeeperData_UnknownTeam_Throws()
     {
         var (_, _, service) = Build();
-        var submission = new KeeperSubmission(new List<KeeperRow>());
+        var submission = new KeeperSubmission(new List<KeeperRow>(), new List<int>());
 
         Assert.Throws<NotFoundException>(() => service.UpdateKeeperData("nobody", submission));
+    }
+
+    [Fact]
+    public void UpdateKeeperData_DeletedExistingContractIndex_MarksDeletedAndPersists()
+    {
+        var (_, store, service) = Build();
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("T. Story", 1, 14, 2),
+                new("", null, null, null)
+            },
+            new List<int> { 0 });
+
+        var result = service.UpdateKeeperData("b-squared", submission);
+
+        Assert.True(result.ExistingContracts[0].Deleted);
+        Assert.False(result.ExistingContracts[1].Deleted);
+        Assert.Equal("Jasson Dominguez", result.ExistingContracts[0].Player);
+        Assert.Equal(3, result.ExistingContracts[0].LastYearSalary);
+        Assert.True(store.Data!.Teams["b-squared"].ExistingContracts[0].Deleted);
+    }
+
+    [Fact]
+    public void UpdateKeeperData_ResubmitWithoutPreviouslyDeletedIndex_UndeletesIt()
+    {
+        var (_, store, service) = Build();
+        var deleteSubmission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("T. Story", 1, 14, 2),
+                new("", null, null, null)
+            },
+            new List<int> { 0 });
+        service.UpdateKeeperData("b-squared", deleteSubmission);
+
+        var undeleteSubmission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("T. Story", 1, 14, 2),
+                new("", null, null, null)
+            },
+            new List<int>());
+        var result = service.UpdateKeeperData("b-squared", undeleteSubmission);
+
+        Assert.False(result.ExistingContracts[0].Deleted);
+        Assert.False(store.Data!.Teams["b-squared"].ExistingContracts[0].Deleted);
+    }
+
+    [Fact]
+    public void UpdateKeeperData_DeletedExistingContractIndexOutOfRange_Throws()
+    {
+        var (_, _, service) = Build();
+        var submission = new KeeperSubmission(
+            new List<KeeperRow>
+            {
+                new("T. Story", 1, 14, 2),
+                new("", null, null, null)
+            },
+            new List<int> { 99 });
+
+        Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
 
     /// <summary>
@@ -168,7 +251,6 @@ public class KeepersServiceTests
             {
                 InterleavingDetected = true;
             }
-            // Widen the window so an unsynchronized read-modify-write reliably overlaps.
             Thread.Sleep(25);
             return Data;
         }
@@ -208,7 +290,7 @@ public class KeepersServiceTests
 
         Parallel.For(0, 8, i =>
         {
-            var submission = new KeeperSubmission(new List<KeeperRow> { new($"Player {i}", 1, 10, 2) });
+            var submission = new KeeperSubmission(new List<KeeperRow> { new($"Player {i}", 1, 10, 2) }, new List<int>());
             service.UpdateKeeperData("b-squared", submission);
         });
 

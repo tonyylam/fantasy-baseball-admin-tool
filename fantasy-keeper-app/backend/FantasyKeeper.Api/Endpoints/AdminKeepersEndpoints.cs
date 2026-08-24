@@ -7,15 +7,6 @@ public static class AdminKeepersEndpoints
 {
     public static void MapAdminKeepersEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/admin/teams", (string pin, AuthService authService, IConfigStore configStore) =>
-        {
-            var auth = authService.ResolvePin(pin);
-            if (auth is null || auth.Role != AuthRole.Admin) return Results.Unauthorized();
-
-            var teams = configStore.GetTeams().Select(t => new { teamId = t.TeamId, name = t.Name });
-            return Results.Ok(teams);
-        });
-
         app.MapPost("/api/admin/keepers/import", (string pin, IFormFile file, AuthService authService, KeepersImportService importService) =>
         {
             var auth = authService.ResolvePin(pin);

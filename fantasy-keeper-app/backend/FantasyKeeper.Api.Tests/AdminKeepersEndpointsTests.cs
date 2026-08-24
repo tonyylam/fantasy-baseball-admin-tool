@@ -105,7 +105,7 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         var confirmResponse = await client.PostAsJsonAsync("/api/admin/keepers/import/confirm?pin=9999", confirmRequest);
         confirmResponse.EnsureSuccessStatusCode();
 
-        var keepersResponse = await client.GetAsync("/api/keepers?pin=1111");
+        var keepersResponse = await client.GetAsync("/api/keepers?pin=1111&teamId=b-squared");
         keepersResponse.EnsureSuccessStatusCode();
         var data = await keepersResponse.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
         Assert.Equal("Some Player", data!.NewContracts[0].Player);
@@ -170,15 +170,5 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(JsonValueKind.Null, json.GetProperty("lastUpdatedUtc").ValueKind);
-    }
-
-    [Fact]
-    public async Task GetAdminTeams_WithAdminPin_ReturnsTeams()
-    {
-        var client = _factory.CreateClient();
-        var response = await client.GetAsync("/api/admin/teams?pin=9999");
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("b-squared", json[0].GetProperty("teamId").GetString());
     }
 }

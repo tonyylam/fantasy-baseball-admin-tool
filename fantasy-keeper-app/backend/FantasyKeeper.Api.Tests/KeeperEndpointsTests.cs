@@ -31,7 +31,7 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
         Directory.CreateDirectory(_dataRoot);
 
         File.WriteAllText(Path.Combine(_configRoot, "teams.json"),
-            """[{"teamId":"b-squared","name":"B Squared","pin":"1111"}]""");
+            """[{"teamId":"b-squared","name":"B Squared","pin":"1111"},{"teamId":"ba-bombers","name":"BA Bombers","pin":"2222"}]""");
 
         var dataStore = new FileKeepersDataStore(_dataRoot);
         dataStore.SaveData(new KeepersData(
@@ -57,7 +57,14 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
                     new List<ExistingContractRow>
                     {
                         new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m)
-                    })
+                    }),
+                ["ba-bombers"] = new StoredTeamKeepers(
+                    "BA Bombers",
+                    30,
+                    new List<int> { 31 },
+                    new List<KeeperRow> { new("", null, null, null) },
+                    new List<int>(),
+                    new List<ExistingContractRow>())
             }));
 
         _factory = factory.WithWebHostBuilder(builder =>
@@ -82,32 +89,64 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
-    public async Task GetKeepers_WithValidTeamPin_ReturnsTeamData()
+    public async Task GetKeepers_OwnTeam_ReturnsCanEditTrue()
     {
         var client = _factory.CreateClient();
-        var response = await client.GetAsync("/api/keepers?pin=1111");
+        var response = await client.GetAsync("/api/keepers?pin=1111&teamId=b-squared");
         response.EnsureSuccessStatusCode();
         var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
         Assert.Equal("B Squared", data!.TeamName);
+        Assert.True(data.CanEdit);
+    }
+
+    [Fact]
+    public async Task GetKeepers_OtherTeam_ReturnsCanEditFalse()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/keepers?pin=1111&teamId=ba-bombers");
+        response.EnsureSuccessStatusCode();
+        var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
+        Assert.Equal("BA Bombers", data!.TeamName);
+        Assert.False(data.CanEdit);
+    }
+
+    [Fact]
+    public async Task GetKeepers_AdminAnyTeam_ReturnsCanEditTrue()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/keepers?pin=9999&teamId=ba-bombers");
+        response.EnsureSuccessStatusCode();
+        var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
+        Assert.True(data!.CanEdit);
     }
 
     [Fact]
     public async Task GetKeepers_WithInvalidPin_ReturnsUnauthorized()
     {
         var client = _factory.CreateClient();
-        var response = await client.GetAsync("/api/keepers?pin=0000");
+        var response = await client.GetAsync("/api/keepers?pin=0000&teamId=b-squared");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetKeepers_MissingTeamId_ReturnsBadRequest()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/keepers?pin=1111");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task PutKeepers_WithInvalidContractType_ReturnsBadRequest()
     {
         var client = _factory.CreateClient();
-        var payload = new KeeperSubmission(Enumerable.Range(0, 6)
-            .Select(i => i == 0 ? new KeeperRow("New Guy", 3, 10, 2) : new KeeperRow("", null, null, null))
-            .ToList());
+        var payload = new KeeperSubmission(
+            Enumerable.Range(0, 6)
+                .Select(i => i == 0 ? new KeeperRow("New Guy", 3, 10, 2) : new KeeperRow("", null, null, null))
+                .ToList(),
+            new List<int>());
 
-        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111", payload);
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111&teamId=b-squared", payload);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -115,13 +154,57 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     public async Task PutKeepers_ValidSubmission_PersistsAndReturnsUpdatedData()
     {
         var client = _factory.CreateClient();
-        var payload = new KeeperSubmission(Enumerable.Range(0, 6)
-            .Select(i => i == 0 ? new KeeperRow("New Guy", 1, 10, 2) : new KeeperRow("", null, null, null))
-            .ToList());
+        var payload = new KeeperSubmission(
+            Enumerable.Range(0, 6)
+                .Select(i => i == 0 ? new KeeperRow("New Guy", 1, 10, 2) : new KeeperRow("", null, null, null))
+                .ToList(),
+            new List<int>());
 
-        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111", payload);
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111&teamId=b-squared", payload);
         response.EnsureSuccessStatusCode();
         var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
         Assert.Equal("New Guy", data!.NewContracts[0].Player);
+    }
+
+    [Fact]
+    public async Task PutKeepers_OtherTeam_ReturnsForbidden()
+    {
+        var client = _factory.CreateClient();
+        var payload = new KeeperSubmission(new List<KeeperRow> { new("", null, null, null) }, new List<int>());
+
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111&teamId=ba-bombers", payload);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutKeepers_AdminOtherTeam_Succeeds()
+    {
+        var client = _factory.CreateClient();
+        var payload = new KeeperSubmission(new List<KeeperRow> { new("Admin Pick", 1, 5, 1) }, new List<int>());
+
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=9999&teamId=ba-bombers", payload);
+        response.EnsureSuccessStatusCode();
+        var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
+        Assert.Equal("Admin Pick", data!.NewContracts[0].Player);
+    }
+
+    [Fact]
+    public async Task GetTeams_WithOwnerPin_ReturnsTeams()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/teams?pin=1111");
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, json.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GetTeams_WithAdminPin_ReturnsTeams()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/teams?pin=9999");
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, json.GetArrayLength());
     }
 }
