@@ -53,6 +53,46 @@ public class FileKeepersDataStoreTests : IDisposable
         Assert.Equal("T. Story", loaded.Teams["b-squared"].NewContracts[0].Player);
     }
 
+    // Regression: data saved before ExistingContractsRows/ExistingContracts existed has no such
+    // keys on disk, and System.Text.Json fills a missing IReadOnlyList<T> constructor parameter
+    // with null despite the non-nullable annotation. LoadData must normalize those to empty.
+    [Fact]
+    public void LoadData_LegacyJsonMissingExistingContractFields_NormalizesToEmptyLists()
+    {
+        var legacyJson = """
+        {
+          "sourceFileName": "legacy.xlsx",
+          "sheetName": "2026 Keepers",
+          "lastUpdatedUtc": "2026-01-01T00:00:00+00:00",
+          "teams": {
+            "b-squared": {
+              "rawNameInSheet": "B Squared",
+              "headerRow": 7,
+              "newContractsRows": [8],
+              "newContracts": [{"player":"T. Story","contractType":1,"salary":14,"keeperYears":2}]
+            }
+          }
+        }
+        """;
+        File.WriteAllText(Path.Combine(_tempDir, "current-keepers.json"), legacyJson);
+
+        var store = new FileKeepersDataStore(_tempDir);
+        var loaded = store.LoadData();
+
+        Assert.NotNull(loaded);
+        var team = loaded!.Teams["b-squared"];
+        Assert.NotNull(team.ExistingContractsRows);
+        Assert.Empty(team.ExistingContractsRows);
+        Assert.NotNull(team.ExistingContracts);
+        Assert.Empty(team.ExistingContracts);
+
+        // Fields that did exist before must survive normalization untouched.
+        Assert.Equal("B Squared", team.RawNameInSheet);
+        Assert.Equal(7, team.HeaderRow);
+        Assert.Equal(new[] { 8 }, team.NewContractsRows);
+        Assert.Equal("T. Story", Assert.Single(team.NewContracts).Player);
+    }
+
     [Fact]
     public void LoadWorkbook_WhenFileMissing_ReturnsNull()
     {

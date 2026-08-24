@@ -193,4 +193,28 @@ public class KeeperWorkbookWriterTests
         Assert.Equal("Other Player", sheet2.Cell(9, "H").GetString());
         Assert.False(sheet2.Cell(9, "H").Style.Font.Strikethrough);
     }
+
+    // Defense in depth: a StoredTeamKeepers whose existing-contract lists are null (as legacy
+    // JSON deserializes to, or any future path that bypasses the data store) must not throw.
+    [Fact]
+    public void WriteKeepers_NullExistingContractLists_DoesNotThrow()
+    {
+        var original = BuildWorkbook();
+        var teams = new Dictionary<string, StoredTeamKeepers>
+        {
+            ["b-squared"] = new StoredTeamKeepers(
+                "B Squared",
+                7,
+                new List<int> { 8 },
+                new List<KeeperRow> { new("New Player", 2, 10, 3) },
+                null!,
+                null!)
+        };
+
+        var result = KeeperWorkbookWriter.WriteKeepers(original, "2026 Keepers", teams);
+
+        using var ms = new MemoryStream(result);
+        using var workbook = new XLWorkbook(ms);
+        Assert.Equal("New Player", workbook.Worksheet("2026 Keepers").Cell(8, "C").GetString());
+    }
 }

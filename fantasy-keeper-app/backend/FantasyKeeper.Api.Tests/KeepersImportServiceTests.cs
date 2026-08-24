@@ -141,6 +141,55 @@ public class KeepersImportServiceTests
         Assert.Throws<NotFoundException>(() => service.Export());
     }
 
+    // End-to-end regression for the legacy-schema export crash: keeper data written to disk
+    // before ExistingContractsRows existed has no such key, which used to deserialize as null
+    // and blow up KeeperWorkbookWriter with a NullReferenceException, failing the export for
+    // the entire league. Uses the real FileKeepersDataStore so the on-disk shape is exercised.
+    [Fact]
+    public void Export_LegacyJsonMissingExistingContractFields_DoesNotThrow()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var legacyJson = """
+            {
+              "sourceFileName": "legacy.xlsx",
+              "sheetName": "2026 Keepers",
+              "lastUpdatedUtc": "2026-01-01T00:00:00+00:00",
+              "teams": {
+                "b-squared": {
+                  "rawNameInSheet": "B Squared",
+                  "headerRow": 7,
+                  "newContractsRows": [8],
+                  "newContracts": [{"player":"T. Story","contractType":1,"salary":14,"keeperYears":2}]
+                }
+              }
+            }
+            """;
+            File.WriteAllText(Path.Combine(tempDir, "current-keepers.json"), legacyJson);
+
+            var store = new FileKeepersDataStore(tempDir);
+            store.SaveWorkbook(BuildWorkbook("B Squared"));
+
+            var service = new KeepersImportService(store, new FakeConfigStore
+            {
+                Teams = new List<Team> { new("b-squared", "B Squared", "1111") }
+            });
+
+            var exported = service.Export();
+
+            Assert.NotEmpty(exported);
+            using var ms = new MemoryStream(exported);
+            using var workbook = new XLWorkbook(ms);
+            Assert.Equal("T. Story", workbook.Worksheet("2026 Keepers").Cell(8, "C").GetString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     [Fact]
     public void Export_AfterConfirmedImport_ContainsStoredNewContractsAtMappedCells()
     {

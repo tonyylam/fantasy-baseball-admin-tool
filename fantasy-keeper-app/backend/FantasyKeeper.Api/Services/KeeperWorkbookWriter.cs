@@ -26,14 +26,20 @@ public static class KeeperWorkbookWriter
                 SetNumber(worksheet.Cell(row, "F"), contract.KeeperYears);
             }
 
-            for (var i = 0; i < team.ExistingContractsRows.Count; i++)
+            // Defense in depth: a StoredTeamKeepers built outside the data store (legacy JSON,
+            // a test fixture, a future code path) can still carry null lists despite the
+            // non-nullable annotations, and a null here would fail the whole league's export.
+            var existingContractsRows = team.ExistingContractsRows ?? Array.Empty<int>();
+            var existingContracts = team.ExistingContracts ?? Array.Empty<ExistingContractRow>();
+
+            for (var i = 0; i < existingContractsRows.Count; i++)
             {
-                if (i >= team.ExistingContracts.Count || !team.ExistingContracts[i].Deleted)
+                if (i >= existingContracts.Count || !existingContracts[i].Deleted)
                 {
                     continue;
                 }
 
-                var row = team.ExistingContractsRows[i];
+                var row = existingContractsRows[i];
                 foreach (var column in ExistingContractColumns)
                 {
                     worksheet.Cell(row, column).Style.Font.Strikethrough = true;

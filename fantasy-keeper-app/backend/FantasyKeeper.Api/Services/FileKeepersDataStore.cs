@@ -20,10 +20,30 @@ public class FileKeepersDataStore : IKeepersDataStore
     private string DataPath => Path.Combine(_dataRoot, "current-keepers.json");
     private string WorkbookPath => Path.Combine(_dataRoot, "current-keepers.xlsx");
 
+    // Data written before a field existed is missing that key on disk, and System.Text.Json
+    // deserializes a missing collection property as null regardless of its non-nullable NRT
+    // annotation. Normalizing here means every downstream consumer (writer, services,
+    // endpoints) can treat these lists as always-present; without it, legacy JSON crashed
+    // the whole-league xlsx export with a NullReferenceException.
     public KeepersData? LoadData()
     {
         if (!File.Exists(DataPath)) return null;
-        return JsonSerializer.Deserialize<KeepersData>(File.ReadAllText(DataPath), JsonOptions);
+
+        var data = JsonSerializer.Deserialize<KeepersData>(File.ReadAllText(DataPath), JsonOptions);
+        if (data is null) return null;
+
+        var teams = data.Teams ?? new Dictionary<string, StoredTeamKeepers>();
+        var normalizedTeams = teams.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value with
+            {
+                NewContractsRows = kv.Value.NewContractsRows ?? Array.Empty<int>(),
+                NewContracts = kv.Value.NewContracts ?? Array.Empty<KeeperRow>(),
+                ExistingContractsRows = kv.Value.ExistingContractsRows ?? Array.Empty<int>(),
+                ExistingContracts = kv.Value.ExistingContracts ?? Array.Empty<ExistingContractRow>()
+            });
+
+        return data with { Teams = normalizedTeams };
     }
 
     // Each file is written to a sibling temp file and then moved into place. File.Move with
