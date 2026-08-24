@@ -19,3 +19,8 @@ public class KeeperValidationException : Exception
         Errors = errors;
     }
 }
+
+public class InvalidWorkbookException : Exception
+{
+    public InvalidWorkbookException(string message) : base(message) { }
+}
