@@ -37,7 +37,7 @@ public class KeepersImportService
             _pending = new PendingImport(fileName, fileBytes, parsed);
         }
 
-        return new ImportPreview(fileName, blocks);
+        return new ImportPreview(fileName, parsed.SheetName, blocks);
     }
 
     public KeepersData ConfirmImport(IReadOnlyList<BlockAssignment> assignments)

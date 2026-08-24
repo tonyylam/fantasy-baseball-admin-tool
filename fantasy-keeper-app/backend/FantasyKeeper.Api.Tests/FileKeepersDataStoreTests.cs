@@ -70,4 +70,32 @@ public class FileKeepersDataStoreTests : IDisposable
 
         Assert.Equal(bytes, loaded);
     }
+
+    [Fact]
+    public void SaveData_OverwritesExistingFileAndLeavesNoTempFileBehind()
+    {
+        var store = new FileKeepersDataStore(_tempDir);
+        var first = new KeepersData("first.xlsx", "2026 Keepers", DateTimeOffset.UtcNow,
+            new Dictionary<string, StoredTeamKeepers>());
+        var second = new KeepersData("second.xlsx", "2026 Keepers", DateTimeOffset.UtcNow,
+            new Dictionary<string, StoredTeamKeepers>());
+
+        store.SaveData(first);
+        store.SaveData(second);
+
+        Assert.Equal("second.xlsx", store.LoadData()!.SourceFileName);
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
+    }
+
+    [Fact]
+    public void SaveWorkbook_OverwritesExistingFileAndLeavesNoTempFileBehind()
+    {
+        var store = new FileKeepersDataStore(_tempDir);
+
+        store.SaveWorkbook(new byte[] { 1, 2, 3, 4 });
+        store.SaveWorkbook(new byte[] { 9, 9 });
+
+        Assert.Equal(new byte[] { 9, 9 }, store.LoadWorkbook());
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
+    }
 }

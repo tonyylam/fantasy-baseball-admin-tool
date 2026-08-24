@@ -48,6 +48,7 @@ public class KeepersImportServiceTests
 
         var preview = service.StartImport(bytes, "keepers.xlsx");
 
+        Assert.Equal("2026 Keepers", preview.SheetName);
         var block = Assert.Single(preview.Blocks);
         Assert.Equal("B Squared", block.RawNameInSheet);
         Assert.Equal("b-squared", block.SuggestedTeamId);
@@ -141,15 +142,43 @@ public class KeepersImportServiceTests
     }
 
     [Fact]
-    public void Export_AfterConfirmedImport_ReturnsWorkbookBytes()
+    public void Export_AfterConfirmedImport_ContainsStoredNewContractsAtMappedCells()
     {
-        var (_, _, service) = Build();
+        var (_, store, service) = Build();
         var bytes = BuildWorkbook("B Squared");
         service.StartImport(bytes, "keepers.xlsx");
-        service.ConfirmImport(new List<BlockAssignment> { new(0, "b-squared") });
+        var data = service.ConfirmImport(new List<BlockAssignment> { new(0, "b-squared") });
+
+        // Simulate a team owner editing their keepers after import, the way
+        // KeepersService.UpdateKeeperData would.
+        var stored = data.Teams["b-squared"];
+        var edited = new List<KeeperRow> { new("Edited Player", 2, 17.5m, 3) };
+        for (var i = edited.Count; i < stored.NewContractsRows.Count; i++)
+        {
+            edited.Add(new KeeperRow("", null, null, null));
+        }
+        var updatedStored = stored with { NewContracts = edited };
+        store.Data = data with
+        {
+            Teams = new Dictionary<string, StoredTeamKeepers> { ["b-squared"] = updatedStored }
+        };
 
         var exported = service.Export();
 
         Assert.NotEmpty(exported);
+        using var ms = new MemoryStream(exported);
+        using var workbook = new XLWorkbook(ms);
+        var sheet = workbook.Worksheet(data.SheetName);
+
+        for (var i = 0; i < updatedStored.NewContractsRows.Count; i++)
+        {
+            var row = updatedStored.NewContractsRows[i];
+            var expected = updatedStored.NewContracts[i];
+
+            Assert.Equal(expected.Player, sheet.Cell(row, "C").GetString());
+            Assert.Equal(expected.ContractType?.ToString() ?? "", sheet.Cell(row, "D").GetString());
+            Assert.Equal(expected.Salary?.ToString() ?? "", sheet.Cell(row, "E").GetString());
+            Assert.Equal(expected.KeeperYears?.ToString() ?? "", sheet.Cell(row, "F").GetString());
+        }
     }
 }

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using FantasyKeeper.Api.Models;
 using FantasyKeeper.Api.Services;
 using FantasyKeeper.Api.Tests.Fakes;
@@ -145,5 +147,70 @@ public class KeepersServiceTests
         var submission = new KeeperSubmission(new List<KeeperRow>());
 
         Assert.Throws<NotFoundException>(() => service.UpdateKeeperData("nobody", submission));
+    }
+
+    /// <summary>
+    /// Instruments the load -> save window so a test can tell whether two callers were ever
+    /// inside it at the same time (which is what causes a lost update).
+    /// </summary>
+    private class InterleaveDetectingStore : IKeepersDataStore
+    {
+        private int _insideLoadToSaveWindow;
+
+        public KeepersData? Data { get; set; }
+        public byte[]? Workbook { get; set; }
+        public bool InterleavingDetected { get; private set; }
+
+        public KeepersData? LoadData()
+        {
+            if (Interlocked.Increment(ref _insideLoadToSaveWindow) > 1)
+            {
+                InterleavingDetected = true;
+            }
+            // Widen the window so an unsynchronized read-modify-write reliably overlaps.
+            Thread.Sleep(25);
+            return Data;
+        }
+
+        public void SaveData(KeepersData data)
+        {
+            Data = data;
+            Interlocked.Decrement(ref _insideLoadToSaveWindow);
+        }
+
+        public void SaveWorkbook(byte[] bytes) => Workbook = bytes;
+        public byte[]? LoadWorkbook() => Workbook;
+    }
+
+    [Fact]
+    public void UpdateKeeperData_ConcurrentCallers_DoNotInterleaveReadModifyWrite()
+    {
+        var config = new FakeConfigStore { Teams = new List<Team> { new("b-squared", "B Squared", "1111") } };
+        var store = new InterleaveDetectingStore
+        {
+            Data = new KeepersData(
+                "test.xlsx",
+                "2026 Keepers",
+                DateTimeOffset.UtcNow,
+                new Dictionary<string, StoredTeamKeepers>
+                {
+                    ["b-squared"] = new StoredTeamKeepers(
+                        "B Squared",
+                        7,
+                        new List<int> { 8 },
+                        new List<KeeperRow> { new("T. Story", 1, 14, 2) },
+                        new List<ExistingContractRow>())
+                })
+        };
+        var service = new KeepersService(store, config);
+
+        Parallel.For(0, 8, i =>
+        {
+            var submission = new KeeperSubmission(new List<KeeperRow> { new($"Player {i}", 1, 10, 2) });
+            service.UpdateKeeperData("b-squared", submission);
+        });
+
+        Assert.False(store.InterleavingDetected, "Two callers were inside the load->save window at once.");
+        Assert.StartsWith("Player ", store.Data!.Teams["b-squared"].NewContracts[0].Player);
     }
 }

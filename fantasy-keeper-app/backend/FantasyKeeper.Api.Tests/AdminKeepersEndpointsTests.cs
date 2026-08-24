@@ -43,7 +43,6 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
                 {
                     ["ConfigRoot"] = _configRoot,
                     ["DataRoot"] = _dataRoot,
-                    ["Google:UseDevClients"] = "true",
                     ["AdminPin"] = "9999"
                 });
             });
@@ -100,6 +99,7 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         importResponse.EnsureSuccessStatusCode();
         var preview = await importResponse.Content.ReadFromJsonAsync<ImportPreview>(ResponseJsonOptions);
         Assert.Equal("b-squared", preview!.Blocks[0].SuggestedTeamId);
+        Assert.Equal("2026 Keepers", preview.SheetName);
 
         var confirmRequest = new ConfirmImportRequest(new List<BlockAssignment> { new(0, "b-squared") });
         var confirmResponse = await client.PostAsJsonAsync("/api/admin/keepers/import/confirm?pin=9999", confirmRequest);
@@ -109,6 +109,49 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         keepersResponse.EnsureSuccessStatusCode();
         var data = await keepersResponse.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
         Assert.Equal("Some Player", data!.NewContracts[0].Player);
+    }
+
+    [Fact]
+    public async Task ImportKeepers_UnreadableFile_ReturnsBadRequest()
+    {
+        var client = _factory.CreateClient();
+        using var content = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(new byte[] { 1, 2, 3, 4, 5 }), "file", "not-a-workbook.xlsx" }
+        };
+
+        var response = await client.PostAsync("/api/admin/keepers/import?pin=9999", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportKeepers_ParserFailsWithNonInvalidWorkbookException_ReturnsBadRequestNot500()
+    {
+        // A header anchor on row 1 leaves no team-name row above it, which makes the parser
+        // throw an out-of-range exception rather than InvalidWorkbookException.
+        byte[] bytes;
+        using (var workbook = new XLWorkbook())
+        {
+            var sheet = workbook.Worksheets.Add("2026 Keepers");
+            sheet.Cell(1, "C").Value = "Player";
+            sheet.Cell(1, "D").Value = "Contract 1 or 2?";
+            sheet.Cell(1, "G").Value = "Existing Contracts";
+            sheet.Cell(2, "C").Value = "Some Player";
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            bytes = ms.ToArray();
+        }
+
+        var client = _factory.CreateClient();
+        using var content = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(bytes), "file", "row-one-anchor.xlsx" }
+        };
+
+        var response = await client.PostAsync("/api/admin/keepers/import?pin=9999", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

@@ -4,7 +4,7 @@ public record ParsedWorkbook(string SheetName, IReadOnlyList<StoredTeamKeepers> 
 
 public record ImportBlockPreview(int BlockIndex, string RawNameInSheet, string? SuggestedTeamId);
 
-public record ImportPreview(string FileName, IReadOnlyList<ImportBlockPreview> Blocks);
+public record ImportPreview(string FileName, string SheetName, IReadOnlyList<ImportBlockPreview> Blocks);
 
 public record BlockAssignment(int BlockIndex, string? TeamId);
 

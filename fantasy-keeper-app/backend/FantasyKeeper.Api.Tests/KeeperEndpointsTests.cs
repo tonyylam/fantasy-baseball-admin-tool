@@ -68,7 +68,6 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
                 {
                     ["ConfigRoot"] = _configRoot,
                     ["DataRoot"] = _dataRoot,
-                    ["Google:UseDevClients"] = "true",
                     ["AdminPin"] = "9999"
                 });
             });

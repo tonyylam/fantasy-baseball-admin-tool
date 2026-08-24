@@ -7,6 +7,11 @@ public class KeepersService
     private readonly IKeepersDataStore _store;
     private readonly IConfigStore _configStore;
 
+    // Serializes UpdateKeeperData's load -> validate -> mutate -> save sequence. Without it,
+    // two owners saving near-simultaneously would each load the same snapshot and the second
+    // save would silently clobber the first (lost update).
+    private readonly object _lock = new();
+
     public KeepersService(IKeepersDataStore store, IConfigStore configStore)
     {
         _store = store;
@@ -23,24 +28,28 @@ public class KeepersService
     public KeeperTeamData UpdateKeeperData(string teamId, KeeperSubmission submission)
     {
         var team = FindTeam(teamId);
-        var data = _store.LoadData() ?? throw new NotFoundException("No keeper data has been imported yet.");
-        if (!data.Teams.TryGetValue(teamId, out var stored))
+
+        lock (_lock)
         {
-            throw new NotFoundException($"No keeper data found for team '{teamId}'.");
+            var data = _store.LoadData() ?? throw new NotFoundException("No keeper data has been imported yet.");
+            if (!data.Teams.TryGetValue(teamId, out var stored))
+            {
+                throw new NotFoundException($"No keeper data found for team '{teamId}'.");
+            }
+
+            var errors = ValidateSubmission(submission, stored.NewContractsRows.Count);
+            if (errors.Count > 0)
+            {
+                throw new KeeperValidationException(errors);
+            }
+
+            var updatedStored = stored with { NewContracts = submission.NewContracts };
+            var updatedTeams = new Dictionary<string, StoredTeamKeepers>(data.Teams) { [teamId] = updatedStored };
+            var updatedData = data with { Teams = updatedTeams, LastUpdatedUtc = DateTimeOffset.UtcNow };
+            _store.SaveData(updatedData);
+
+            return new KeeperTeamData(team.Name, updatedStored.ExistingContracts, updatedStored.NewContracts);
         }
-
-        var errors = ValidateSubmission(submission, stored.NewContractsRows.Count);
-        if (errors.Count > 0)
-        {
-            throw new KeeperValidationException(errors);
-        }
-
-        var updatedStored = stored with { NewContracts = submission.NewContracts };
-        var updatedTeams = new Dictionary<string, StoredTeamKeepers>(data.Teams) { [teamId] = updatedStored };
-        var updatedData = data with { Teams = updatedTeams, LastUpdatedUtc = DateTimeOffset.UtcNow };
-        _store.SaveData(updatedData);
-
-        return new KeeperTeamData(team.Name, updatedStored.ExistingContracts, updatedStored.NewContracts);
     }
 
     private static List<string> ValidateSubmission(KeeperSubmission submission, int expectedRows)

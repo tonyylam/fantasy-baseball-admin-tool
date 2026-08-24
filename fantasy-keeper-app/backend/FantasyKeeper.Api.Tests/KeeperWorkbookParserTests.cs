@@ -98,6 +98,41 @@ public class KeeperWorkbookParserTests
     }
 
     [Fact]
+    public void Parse_LastTeamFollowedByFooterContent_DoesNotSwallowFooterRows()
+    {
+        // Regression: the last detected team's block used to run all the way to the
+        // sheet's LastRowUsed(), swallowing footers/notes/totals into its editable
+        // New Contracts slots — which the writer then cleared on export.
+        var bytes = BuildWorkbook(sheet =>
+        {
+            WriteTeamBlock(sheet, teamNameRow: 6, teamName: "B Squared");
+            WriteTeamBlock(sheet, teamNameRow: 20, teamName: "BA Bombers");
+
+            // Trailing footer / notes content well past the last team's own data,
+            // with irregular gaps between it and the last block.
+            sheet.Cell(55, "A").Value = "League notes";
+            sheet.Cell(59, "C").Value = "Grand total";
+            sheet.Cell(58, "H").Value = "Footer note";
+            sheet.Cell(60, "A").Value = "Totals";
+            sheet.Cell(60, "E").FormulaA1 = "=SUM(E22:E32)";
+        });
+
+        using var ms = new MemoryStream(bytes);
+        var parsed = KeeperWorkbookParser.Parse(ms);
+
+        Assert.Equal(2, parsed.Teams.Count);
+        var first = parsed.Teams[0];
+        var last = parsed.Teams[1];
+
+        // The last block must be capped near the height of the other detected block,
+        // not extended down to the sheet's last used row.
+        Assert.Equal(first.NewContractsRows.Count, last.NewContractsRows.Count);
+        Assert.All(last.NewContractsRows, row => Assert.True(row < 55, $"Row {row} reaches into the footer region."));
+        Assert.DoesNotContain(last.NewContracts, c => c.Player == "Grand total");
+        Assert.DoesNotContain(last.ExistingContracts, c => c.Player == "Footer note");
+    }
+
+    [Fact]
     public void Parse_NoHeaderAnchorFound_ThrowsInvalidWorkbook()
     {
         var bytes = BuildWorkbook(sheet => sheet.Cell(1, "A").Value = "Not a keepers sheet");

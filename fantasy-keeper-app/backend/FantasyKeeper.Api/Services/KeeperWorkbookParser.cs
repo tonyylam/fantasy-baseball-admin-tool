@@ -26,6 +26,21 @@ public static class KeeperWorkbookParser
                 if (anchorRows.Count == 0) continue;
 
                 var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? anchorRows[^1];
+
+                // The last team has no following anchor to bound it, and LastRowUsed() spans the
+                // whole sheet — using it would swallow footers/notes/totals below the last block
+                // into that team's editable New Contracts slots (which the writer then clears).
+                // Bound it by the tallest of the other detected blocks instead.
+                var blockHeights = new List<int>();
+                for (var j = 0; j < anchorRows.Count - 1; j++)
+                {
+                    var jStart = anchorRows[j] + 1;
+                    var jEnd = anchorRows[j + 1] - 2;
+                    blockHeights.Add(jEnd - jStart + 1);
+                }
+                const int FallbackMaxBlockHeight = 30; // used only when there's a single team and no other block to size against
+                var maxOtherBlockHeight = blockHeights.Count > 0 ? blockHeights.Max() : FallbackMaxBlockHeight;
+
                 var teams = new List<StoredTeamKeepers>();
 
                 for (var i = 0; i < anchorRows.Count; i++)
@@ -35,7 +50,9 @@ public static class KeeperWorkbookParser
                     var rawName = worksheet.Cell(teamNameRow, "A").GetString().Trim();
 
                     var startDataRow = headerRow + 1;
-                    var endDataRow = i + 1 < anchorRows.Count ? anchorRows[i + 1] - 2 : lastRow;
+                    var endDataRow = i + 1 < anchorRows.Count
+                        ? anchorRows[i + 1] - 2
+                        : Math.Min(lastRow, startDataRow + maxOtherBlockHeight - 1);
 
                     var newContractsRows = new List<int>();
                     var newContracts = new List<KeeperRow>();

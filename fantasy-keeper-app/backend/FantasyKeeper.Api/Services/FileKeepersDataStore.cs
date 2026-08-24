@@ -26,16 +26,39 @@ public class FileKeepersDataStore : IKeepersDataStore
         return JsonSerializer.Deserialize<KeepersData>(File.ReadAllText(DataPath), JsonOptions);
     }
 
+    // Each file is written to a sibling temp file and then moved into place. File.Move with
+    // overwrite is atomic within a volume, so a crash mid-write can never leave a truncated or
+    // half-serialized final file (a corrupt current-keepers.json would make LoadData throw on
+    // every subsequent request, bricking the app). Note this makes each individual file write
+    // atomic; it does NOT make ConfirmImport's SaveData-then-SaveWorkbook pair atomic as a unit.
     public void SaveData(KeepersData data)
     {
         Directory.CreateDirectory(_dataRoot);
-        File.WriteAllText(DataPath, JsonSerializer.Serialize(data, JsonOptions));
+        WriteAtomic(DataPath, path => File.WriteAllText(path, JsonSerializer.Serialize(data, JsonOptions)));
     }
 
     public void SaveWorkbook(byte[] bytes)
     {
         Directory.CreateDirectory(_dataRoot);
-        File.WriteAllBytes(WorkbookPath, bytes);
+        WriteAtomic(WorkbookPath, path => File.WriteAllBytes(path, bytes));
+    }
+
+    private static void WriteAtomic(string finalPath, Action<string> write)
+    {
+        var tempPath = finalPath + ".tmp";
+        try
+        {
+            write(tempPath);
+            File.Move(tempPath, finalPath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(tempPath))
+            {
+                try { File.Delete(tempPath); } catch { /* best-effort cleanup */ }
+            }
+            throw;
+        }
     }
 
     public byte[]? LoadWorkbook() => File.Exists(WorkbookPath) ? File.ReadAllBytes(WorkbookPath) : null;

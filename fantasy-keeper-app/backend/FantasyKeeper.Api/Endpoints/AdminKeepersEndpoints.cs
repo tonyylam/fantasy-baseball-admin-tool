@@ -29,11 +29,24 @@ public static class AdminKeepersEndpoints
             {
                 return Results.Ok(importService.StartImport(ms.ToArray(), file.FileName));
             }
-            catch (InvalidWorkbookException ex)
+            catch (Exception ex)
             {
-                return Results.BadRequest(new { error = ex.Message });
+                // Defense in depth at the HTTP boundary: the parser reads arbitrary user-supplied
+                // bytes, and not every malformed-workbook edge case surfaces as
+                // InvalidWorkbookException. ANY parse failure must be a 400, never a 500.
+                return Results.BadRequest(new
+                {
+                    error = ex is InvalidWorkbookException
+                        ? ex.Message
+                        : "Couldn't read that file. Make sure it's a valid xlsx workbook."
+                });
             }
-        }).DisableAntiforgery();
+        })
+        // Antiforgery is disabled here because this app never calls AddAntiforgery() and has no
+        // cookie-based session (PIN-in-query-string auth only, so there is no ambient credential a
+        // CSRF could ride on). Without this, the antiforgery metadata ASP.NET auto-attaches to
+        // IFormFile endpoints would fail every single request — this is not a security tradeoff.
+        .DisableAntiforgery();
 
         app.MapPost("/api/admin/keepers/import/confirm", (string pin, ConfirmImportRequest request, AuthService authService, KeepersImportService importService) =>
         {
