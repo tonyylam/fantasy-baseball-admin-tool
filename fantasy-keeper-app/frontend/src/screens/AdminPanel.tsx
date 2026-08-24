@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { getTeams, importKeepers, confirmImport, getKeepersStatus, exportKeepers } from "../api/client";
+import { getTeams, importKeepers, confirmImport, getKeepersStatus, exportKeepers, ApiError } from "../api/client";
 import type { TeamSummary, ImportPreview, BlockAssignment, KeepersStatus } from "../types";
 
 interface Props {
@@ -39,8 +39,18 @@ export function AdminPanel({ pin }: Props) {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch {
-      setMessage("Couldn't export. Make sure keeper data has been imported.");
+    } catch (err) {
+      // The export endpoint returns 409 only for "nothing imported yet", so re-importing is
+      // the right remedy for that case alone. Any other failure (e.g. a 500 from bad stored
+      // data) must not steer the admin into overwriting good data with a re-import.
+      if (err instanceof ApiError && err.status === 409) {
+        setMessage("Couldn't export. Make sure keeper data has been imported.");
+      } else if (err instanceof ApiError) {
+        const body = err.body as { error?: string } | null;
+        setMessage(body?.error ?? "Couldn't export. Something went wrong on the server.");
+      } else {
+        setMessage("Couldn't export. Try again.");
+      }
     }
   }
 
