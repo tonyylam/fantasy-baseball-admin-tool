@@ -3,15 +3,6 @@ export type AuthRole = "Owner" | "Admin";
 export interface AuthResult {
   role: AuthRole;
   teamId: string | null;
-  seasonId: string | null;
-}
-
-export interface Season {
-  id: string;
-  label: string;
-  googleSheetId: string;
-  status: "active" | "archived";
-  createdAt: string;
 }
 
 export interface KeeperRow {
@@ -31,7 +22,32 @@ export interface ExistingContractRow {
 
 export interface KeeperTeamData {
   teamName: string;
-  readOnly: boolean;
   existingContracts: ExistingContractRow[];
   newContracts: KeeperRow[];
+}
+
+export interface TeamSummary {
+  teamId: string;
+  name: string;
+}
+
+export interface ImportBlockPreview {
+  blockIndex: number;
+  rawNameInSheet: string;
+  suggestedTeamId: string | null;
+}
+
+export interface ImportPreview {
+  fileName: string;
+  blocks: ImportBlockPreview[];
+}
+
+export interface BlockAssignment {
+  blockIndex: number;
+  teamId: string | null;
+}
+
+export interface KeepersStatus {
+  lastUpdatedUtc: string | null;
+  sourceFileName: string | null;
 }

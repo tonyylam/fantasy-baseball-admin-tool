@@ -1,4 +1,12 @@
-import type { AuthResult, Season, KeeperTeamData, KeeperRow } from "../types";
+import type {
+  AuthResult,
+  KeeperTeamData,
+  KeeperRow,
+  TeamSummary,
+  ImportPreview,
+  BlockAssignment,
+  KeepersStatus
+} from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -34,25 +42,56 @@ export function authenticate(pin: string): Promise<AuthResult> {
   });
 }
 
-export function getSeasons(pin: string): Promise<Season[]> {
-  return request<Season[]>(`/api/seasons?pin=${encodeURIComponent(pin)}`);
+export function getKeepers(pin: string): Promise<KeeperTeamData> {
+  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}`);
 }
 
-export function getKeepers(pin: string, seasonId?: string): Promise<KeeperTeamData> {
-  const query = seasonId ? `&seasonId=${encodeURIComponent(seasonId)}` : "";
-  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}${query}`);
-}
-
-export function updateKeepers(pin: string, seasonId: string, newContracts: KeeperRow[]): Promise<KeeperTeamData> {
-  return request<KeeperTeamData>(
-    `/api/keepers?pin=${encodeURIComponent(pin)}&seasonId=${encodeURIComponent(seasonId)}`,
-    { method: "PUT", body: JSON.stringify({ newContracts }) }
-  );
-}
-
-export function createSeason(pin: string, label: string): Promise<Season> {
-  return request<Season>(`/api/admin/seasons?pin=${encodeURIComponent(pin)}`, {
-    method: "POST",
-    body: JSON.stringify({ label })
+export function updateKeepers(pin: string, newContracts: KeeperRow[]): Promise<KeeperTeamData> {
+  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}`, {
+    method: "PUT",
+    body: JSON.stringify({ newContracts })
   });
+}
+
+export function getAdminTeams(pin: string): Promise<TeamSummary[]> {
+  return request<TeamSummary[]>(`/api/admin/teams?pin=${encodeURIComponent(pin)}`);
+}
+
+export async function importKeepers(pin: string, file: File): Promise<ImportPreview> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${BASE_URL}/api/admin/keepers/import?pin=${encodeURIComponent(pin)}`, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, body);
+  }
+
+  return response.json() as Promise<ImportPreview>;
+}
+
+export function confirmImport(pin: string, assignments: BlockAssignment[]): Promise<void> {
+  return request<void>(`/api/admin/keepers/import/confirm?pin=${encodeURIComponent(pin)}`, {
+    method: "POST",
+    body: JSON.stringify({ assignments })
+  });
+}
+
+export async function exportKeepers(pin: string): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/api/admin/keepers/export?pin=${encodeURIComponent(pin)}`);
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, body);
+  }
+
+  return response.blob();
+}
+
+export function getKeepersStatus(pin: string): Promise<KeepersStatus> {
+  return request<KeepersStatus>(`/api/admin/keepers/status?pin=${encodeURIComponent(pin)}`);
 }
