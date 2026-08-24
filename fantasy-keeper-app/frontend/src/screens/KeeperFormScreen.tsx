@@ -1,27 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-import { getKeepers, getSeasons, updateKeepers, ApiError } from "../api/client";
-import type { KeeperRow, KeeperTeamData, Season } from "../types";
+import { getKeepers, updateKeepers, ApiError } from "../api/client";
+import type { KeeperRow, KeeperTeamData } from "../types";
 
 interface Props {
   pin: string;
-  defaultSeasonId: string;
 }
 
-export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [seasonId, setSeasonId] = useState(defaultSeasonId);
+export function KeeperFormScreen({ pin }: Props) {
   const [data, setData] = useState<KeeperTeamData | null>(null);
   const [rows, setRows] = useState<KeeperRow[]>([]);
+  const [deletedIndices, setDeletedIndices] = useState<Set<number>>(new Set());
   const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadKeepers = useCallback(async (targetSeasonId: string) => {
+  const loadKeepers = useCallback(async () => {
     setStatus("loading");
     setMessage(null);
     try {
-      const result = await getKeepers(pin, targetSeasonId);
+      const result = await getKeepers(pin);
       setData(result);
       setRows(result.newContracts);
+      setDeletedIndices(new Set());
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -30,12 +29,8 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
   }, [pin]);
 
   useEffect(() => {
-    getSeasons(pin).then(setSeasons).catch(() => setSeasons([]));
-  }, [pin]);
-
-  useEffect(() => {
-    loadKeepers(seasonId);
-  }, [seasonId, loadKeepers]);
+    loadKeepers();
+  }, [loadKeepers]);
 
   function updateRow(index: number, field: keyof KeeperRow, value: string) {
     setRows((prev) =>
@@ -47,13 +42,26 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
     );
   }
 
+  function toggleDelete(index: number) {
+    setDeletedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
   async function handleSave() {
     setStatus("saving");
     setMessage(null);
     try {
-      const result = await updateKeepers(pin, seasonId, rows);
+      const submission = rows.map((row, i) =>
+        deletedIndices.has(i) ? { player: "", contractType: null, salary: null, keeperYears: null } : row
+      );
+      const result = await updateKeepers(pin, submission);
       setData(result);
       setRows(result.newContracts);
+      setDeletedIndices(new Set());
       setStatus("idle");
       setMessage("Saved.");
     } catch (err) {
@@ -61,8 +69,6 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
       if (err instanceof ApiError && err.status === 400) {
         const body = err.body as { errors?: string[] };
         setMessage((body.errors ?? ["Some fields are invalid."]).join(" "));
-      } else if (err instanceof ApiError && err.status === 409) {
-        setMessage("This season is no longer open for edits.");
       } else {
         setMessage("Couldn't save. Try again.");
       }
@@ -73,7 +79,7 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
     return (
       <div>
         <p role="status">{message}</p>
-        <button onClick={() => loadKeepers(seasonId)}>Retry</button>
+        <button onClick={() => loadKeepers()}>Retry</button>
       </div>
     );
   }
@@ -82,20 +88,9 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
     return <p>Loading...</p>;
   }
 
-  const readOnly = data.readOnly;
-
   return (
     <div className="keeper-form">
       <h1>{data.teamName} — Keepers</h1>
-
-      <label htmlFor="season">Season</label>
-      <select id="season" value={seasonId} onChange={(event) => setSeasonId(event.target.value)}>
-        {seasons.map((season) => (
-          <option key={season.id} value={season.id}>
-            {season.label} {season.status === "archived" ? "(archived)" : ""}
-          </option>
-        ))}
-      </select>
 
       <h2>Existing Contracts</h2>
       <table>
@@ -118,25 +113,36 @@ export function KeeperFormScreen({ pin, defaultSeasonId }: Props) {
       <h2>New Contracts</h2>
       <table>
         <thead>
-          <tr><th>Player</th><th>Contract 1 or 2</th><th>Salary</th><th>Keeper Years</th></tr>
+          <tr><th>Player</th><th>Contract 1 or 2</th><th>Salary</th><th>Keeper Years</th><th>Delete</th></tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              <td><input value={row.player} disabled={readOnly} onChange={(e) => updateRow(i, "player", e.target.value)} /></td>
-              <td><input value={row.contractType ?? ""} disabled={readOnly} onChange={(e) => updateRow(i, "contractType", e.target.value)} /></td>
-              <td><input value={row.salary ?? ""} disabled={readOnly} onChange={(e) => updateRow(i, "salary", e.target.value)} /></td>
-              <td><input value={row.keeperYears ?? ""} disabled={readOnly} onChange={(e) => updateRow(i, "keeperYears", e.target.value)} /></td>
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const isDeleted = deletedIndices.has(i);
+            const rowStyle = isDeleted ? { textDecoration: "line-through", opacity: 0.5 } : undefined;
+            return (
+              <tr key={i} style={rowStyle}>
+                <td><input style={{ width: "100%", boxSizing: "border-box" }} value={row.player} onChange={(e) => updateRow(i, "player", e.target.value)} /></td>
+                <td>
+                  <select style={{ width: "100%", boxSizing: "border-box" }} value={row.contractType ?? ""} onChange={(e) => updateRow(i, "contractType", e.target.value)}>
+                    <option value="">--</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                  </select>
+                </td>
+                <td><input style={{ width: "100%", boxSizing: "border-box" }} value={row.salary ?? ""} onChange={(e) => updateRow(i, "salary", e.target.value)} /></td>
+                <td><input style={{ width: "100%", boxSizing: "border-box" }} value={row.keeperYears ?? ""} onChange={(e) => updateRow(i, "keeperYears", e.target.value)} /></td>
+                <td>
+                  <input type="checkbox" checked={isDeleted} onChange={() => toggleDelete(i)} aria-label={`Delete contract for row ${i + 1}`} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
-      {!readOnly && (
-        <button onClick={handleSave} disabled={status === "saving"}>
-          {status === "saving" ? "Saving..." : "Save Keepers"}
-        </button>
-      )}
+      <button onClick={handleSave} disabled={status === "saving"}>
+        {status === "saving" ? "Saving..." : "Save Keepers"}
+      </button>
       {message && <p role="status">{message}</p>}
     </div>
   );

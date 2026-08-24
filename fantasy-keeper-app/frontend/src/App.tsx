@@ -16,7 +16,7 @@ export default function App() {
       {auth.role === "Admin" ? (
         <AdminPanel pin={pin} />
       ) : (
-        <KeeperFormScreen pin={pin} defaultSeasonId={auth.seasonId!} />
+        <KeeperFormScreen pin={pin} />
       )}
     </div>
   );
