@@ -1,55 +1,48 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { getSeasons, createSeason } from "../api/client";
-import type { Season } from "../types";
+import { useEffect, useState } from "react";
+import { getKeepersStatus, exportKeepers } from "../api/client";
+import type { KeepersStatus } from "../types";
 
 interface Props {
   pin: string;
 }
 
 export function AdminPanel({ pin }: Props) {
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [label, setLabel] = useState("");
-  const [status, setStatus] = useState<"idle" | "creating">("idle");
+  const [status, setStatus] = useState<KeepersStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  function refresh() {
-    getSeasons(pin).then(setSeasons).catch(() => setSeasons([]));
+  function refreshStatus() {
+    getKeepersStatus(pin).then(setStatus).catch(() => setStatus(null));
   }
 
-  useEffect(refresh, [pin]);
+  useEffect(refreshStatus, [pin]);
 
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault();
-    if (!label.trim()) return;
-    setStatus("creating");
+  async function handleExport() {
     setMessage(null);
     try {
-      await createSeason(pin, label.trim());
-      setLabel("");
-      setMessage("New season created.");
-      refresh();
+      const blob = await exportKeepers(pin);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "keepers-export.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
     } catch {
-      setMessage("Couldn't create the new season. Try again.");
-    } finally {
-      setStatus("idle");
+      setMessage("Couldn't export. Make sure keeper data has been imported.");
     }
   }
 
   return (
     <div className="admin-panel">
-      <h1>Season Administration</h1>
-      <ul>
-        {seasons.map((season) => (
-          <li key={season.id}>{season.label} — {season.status}</li>
-        ))}
-      </ul>
-      <form onSubmit={handleCreate}>
-        <label htmlFor="label">New season label</label>
-        <input id="label" value={label} onChange={(event) => setLabel(event.target.value)} />
-        <button type="submit" disabled={status === "creating" || !label.trim()}>
-          {status === "creating" ? "Creating..." : "Start New Season"}
-        </button>
-      </form>
+      <h1>Keepers Administration</h1>
+
+      <p>
+        {status?.lastUpdatedUtc
+          ? `Last updated: ${new Date(status.lastUpdatedUtc).toLocaleString()} (from ${status.sourceFileName})`
+          : "No keeper data has been imported yet."}
+      </p>
+
+      <button onClick={handleExport} disabled={!status?.lastUpdatedUtc}>Export current data</button>
+
       {message && <p role="status">{message}</p>}
     </div>
   );
