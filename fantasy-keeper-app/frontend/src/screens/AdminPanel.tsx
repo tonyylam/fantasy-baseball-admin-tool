@@ -1,20 +1,29 @@
-import { useEffect, useState } from "react";
-import { getKeepersStatus, exportKeepers } from "../api/client";
-import type { KeepersStatus } from "../types";
+import { useEffect, useState, type ChangeEvent } from "react";
+import { getAdminTeams, importKeepers, confirmImport, getKeepersStatus, exportKeepers } from "../api/client";
+import type { TeamSummary, ImportPreview, BlockAssignment, KeepersStatus } from "../types";
 
 interface Props {
   pin: string;
 }
 
+const SKIP = "__skip__";
+
 export function AdminPanel({ pin }: Props) {
+  const [teams, setTeams] = useState<TeamSummary[]>([]);
   const [status, setStatus] = useState<KeepersStatus | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [assignments, setAssignments] = useState<Record<number, string>>({});
+  const [phase, setPhase] = useState<"idle" | "importing" | "confirming">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  function refreshStatus() {
+  function refresh() {
+    getAdminTeams(pin).then(setTeams).catch(() => setTeams([]));
     getKeepersStatus(pin).then(setStatus).catch(() => setStatus(null));
   }
 
-  useEffect(refreshStatus, [pin]);
+  useEffect(refresh, [pin]);
 
   async function handleExport() {
     setMessage(null);
@@ -31,6 +40,69 @@ export function AdminPanel({ pin }: Props) {
     }
   }
 
+  function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPendingFile(file);
+    setMessage(null);
+    if (status?.lastUpdatedUtc) {
+      setShowOverwriteWarning(true);
+    } else {
+      void startImport(file);
+    }
+  }
+
+  async function startImport(file: File) {
+    setShowOverwriteWarning(false);
+    setPhase("importing");
+    setMessage(null);
+    try {
+      const result = await importKeepers(pin, file);
+      setPreview(result);
+      const initial: Record<number, string> = {};
+      for (const block of result.blocks) {
+        initial[block.blockIndex] = block.suggestedTeamId ?? "";
+      }
+      setAssignments(initial);
+    } catch {
+      setMessage("Couldn't read that file. Make sure it's the league's xlsx export.");
+    } finally {
+      setPhase("idle");
+      setPendingFile(null);
+    }
+  }
+
+  function cancelReview() {
+    setPreview(null);
+    setAssignments({});
+  }
+
+  const chosenTeamIds = Object.values(assignments).filter((v) => v !== "" && v !== SKIP);
+  const hasDuplicates = new Set(chosenTeamIds).size !== chosenTeamIds.length;
+  const hasUnresolved = preview?.blocks.some((b) => assignments[b.blockIndex] === "") ?? true;
+  const canConfirm = !!preview && !hasUnresolved && !hasDuplicates;
+
+  async function handleConfirm() {
+    if (!preview) return;
+    setPhase("confirming");
+    setMessage(null);
+    try {
+      const payload: BlockAssignment[] = preview.blocks.map((b) => ({
+        blockIndex: b.blockIndex,
+        teamId: assignments[b.blockIndex] === SKIP ? null : assignments[b.blockIndex]
+      }));
+      await confirmImport(pin, payload);
+      setPreview(null);
+      setAssignments({});
+      setMessage("Import confirmed.");
+      refresh();
+    } catch {
+      setMessage("Couldn't confirm the import. Try again.");
+    } finally {
+      setPhase("idle");
+    }
+  }
+
   return (
     <div className="admin-panel">
       <h1>Keepers Administration</h1>
@@ -42,6 +114,59 @@ export function AdminPanel({ pin }: Props) {
       </p>
 
       <button onClick={handleExport} disabled={!status?.lastUpdatedUtc}>Export current data</button>
+
+      {!preview && (
+        <div>
+          <label htmlFor="import-file">Import season xlsx</label>
+          <input id="import-file" type="file" accept=".xlsx" onChange={handleFileSelected} disabled={phase === "importing"} />
+        </div>
+      )}
+
+      {showOverwriteWarning && pendingFile && (
+        <div role="alertdialog">
+          <p>Importing will overwrite all current keeper data. Consider exporting a backup first.</p>
+          <button onClick={handleExport}>Export current data</button>
+          <button onClick={() => void startImport(pendingFile)}>Continue import</button>
+          <button onClick={() => { setShowOverwriteWarning(false); setPendingFile(null); }}>Cancel</button>
+        </div>
+      )}
+
+      {preview && (
+        <div>
+          <h2>Confirm teams for "{preview.fileName}"</h2>
+          <table>
+            <thead>
+              <tr><th>Detected in sheet</th><th>Team</th></tr>
+            </thead>
+            <tbody>
+              {preview.blocks.map((block) => (
+                <tr key={block.blockIndex}>
+                  <td>{block.rawNameInSheet}</td>
+                  <td>
+                    <select
+                      value={assignments[block.blockIndex] ?? ""}
+                      onChange={(e) =>
+                        setAssignments((prev) => ({ ...prev, [block.blockIndex]: e.target.value }))
+                      }
+                    >
+                      <option value="">-- Choose --</option>
+                      <option value={SKIP}>-- Skip this block --</option>
+                      {teams.map((team) => (
+                        <option key={team.teamId} value={team.teamId}>{team.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {hasDuplicates && <p role="status">The same team is assigned to more than one block.</p>}
+          <button onClick={handleConfirm} disabled={!canConfirm || phase === "confirming"}>
+            {phase === "confirming" ? "Confirming..." : "Confirm Import"}
+          </button>
+          <button onClick={cancelReview}>Cancel</button>
+        </div>
+      )}
 
       {message && <p role="status">{message}</p>}
     </div>
