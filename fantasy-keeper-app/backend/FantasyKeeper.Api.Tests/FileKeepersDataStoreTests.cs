@@ -41,6 +41,7 @@ public class FileKeepersDataStoreTests : IDisposable
                     7,
                     new List<int> { 8, 9 },
                     new List<KeeperRow> { new("T. Story", 1, 14, 2) },
+                    new List<int> { 8 },
                     new List<ExistingContractRow> { new("J. Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m) })
             });
 

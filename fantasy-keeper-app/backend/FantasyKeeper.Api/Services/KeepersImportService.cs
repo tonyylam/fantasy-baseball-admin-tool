@@ -109,7 +109,7 @@ public class KeepersImportService
     {
         var data = _store.LoadData() ?? throw new NotFoundException("No keeper data has been imported yet.");
         var workbookBytes = _store.LoadWorkbook() ?? throw new NotFoundException("No keeper data has been imported yet.");
-        return KeeperWorkbookWriter.WriteNewContracts(workbookBytes, data.SheetName, data.Teams);
+        return KeeperWorkbookWriter.WriteKeepers(workbookBytes, data.SheetName, data.Teams);
     }
 
     private static string? SuggestTeamId(string rawName, IReadOnlyList<Team> teams)

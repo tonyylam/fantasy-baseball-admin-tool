@@ -53,6 +53,7 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
                         new("", null, null, null),
                         new("", null, null, null)
                     },
+                    new List<int> { 20 },
                     new List<ExistingContractRow>
                     {
                         new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m)

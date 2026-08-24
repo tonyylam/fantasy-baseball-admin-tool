@@ -56,6 +56,7 @@ public static class KeeperWorkbookParser
 
                     var newContractsRows = new List<int>();
                     var newContracts = new List<KeeperRow>();
+                    var existingContractsRows = new List<int>();
                     var existingContracts = new List<ExistingContractRow>();
 
                     for (var row = startDataRow; row <= endDataRow; row++)
@@ -70,6 +71,7 @@ public static class KeeperWorkbookParser
                         var existingPlayer = worksheet.Cell(row, "H").GetString().Trim();
                         if (existingPlayer.Length > 0)
                         {
+                            existingContractsRows.Add(row);
                             existingContracts.Add(new ExistingContractRow(
                                 existingPlayer,
                                 worksheet.Cell(row, "I").GetString().Trim(),
@@ -79,7 +81,7 @@ public static class KeeperWorkbookParser
                         }
                     }
 
-                    teams.Add(new StoredTeamKeepers(rawName, headerRow, newContractsRows, newContracts, existingContracts));
+                    teams.Add(new StoredTeamKeepers(rawName, headerRow, newContractsRows, newContracts, existingContractsRows, existingContracts));
                 }
 
                 return new ParsedWorkbook(worksheet.Name, teams);

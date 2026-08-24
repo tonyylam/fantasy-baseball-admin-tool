@@ -5,7 +5,9 @@ namespace FantasyKeeper.Api.Services;
 
 public static class KeeperWorkbookWriter
 {
-    public static byte[] WriteNewContracts(byte[] originalWorkbookBytes, string sheetName, IReadOnlyDictionary<string, StoredTeamKeepers> teams)
+    private static readonly string[] ExistingContractColumns = { "H", "I", "J", "L", "M" };
+
+    public static byte[] WriteKeepers(byte[] originalWorkbookBytes, string sheetName, IReadOnlyDictionary<string, StoredTeamKeepers> teams)
     {
         using var input = new MemoryStream(originalWorkbookBytes);
         using var workbook = new XLWorkbook(input);
@@ -22,6 +24,20 @@ public static class KeeperWorkbookWriter
                 SetNumber(worksheet.Cell(row, "D"), contract.ContractType);
                 SetNumber(worksheet.Cell(row, "E"), contract.Salary);
                 SetNumber(worksheet.Cell(row, "F"), contract.KeeperYears);
+            }
+
+            for (var i = 0; i < team.ExistingContractsRows.Count; i++)
+            {
+                if (i >= team.ExistingContracts.Count || !team.ExistingContracts[i].Deleted)
+                {
+                    continue;
+                }
+
+                var row = team.ExistingContractsRows[i];
+                foreach (var column in ExistingContractColumns)
+                {
+                    worksheet.Cell(row, column).Style.Font.Strikethrough = true;
+                }
             }
         }
 

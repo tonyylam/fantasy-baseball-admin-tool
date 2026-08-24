@@ -5,6 +5,7 @@ public record StoredTeamKeepers(
     int HeaderRow,
     IReadOnlyList<int> NewContractsRows,
     IReadOnlyList<KeeperRow> NewContracts,
+    IReadOnlyList<int> ExistingContractsRows,
     IReadOnlyList<ExistingContractRow> ExistingContracts);
 
 public record KeepersData(

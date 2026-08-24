@@ -80,6 +80,19 @@ public class KeeperWorkbookParserTests
     }
 
     [Fact]
+    public void Parse_SingleTeam_ExistingContractsRowsMatchExistingContractsCount()
+    {
+        var bytes = BuildWorkbook(sheet => WriteTeamBlock(sheet, teamNameRow: 6, teamName: "B Squared"));
+
+        using var ms = new MemoryStream(bytes);
+        var parsed = KeeperWorkbookParser.Parse(ms);
+
+        var team = parsed.Teams[0];
+        Assert.Equal(team.ExistingContractsRows.Count, team.ExistingContracts.Count);
+        Assert.Equal(8, team.ExistingContractsRows[0]);
+    }
+
+    [Fact]
     public void Parse_TwoTeams_SplitsAtNextAnchor()
     {
         var bytes = BuildWorkbook(sheet =>
