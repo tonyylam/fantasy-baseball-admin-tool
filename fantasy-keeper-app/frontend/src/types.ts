@@ -39,6 +39,7 @@ export interface ImportBlockPreview {
 
 export interface ImportPreview {
   fileName: string;
+  sheetName: string;
   blocks: ImportBlockPreview[];
 }
 

@@ -33,8 +33,12 @@ export function AdminPanel({ pin }: Props) {
       const link = document.createElement("a");
       link.href = url;
       link.download = "keepers-export.xlsx";
+      // The anchor must be in the document and the blob URL must outlive the click tick,
+      // or some browsers abort the download.
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
       setMessage("Couldn't export. Make sure keeper data has been imported.");
     }
@@ -133,7 +137,7 @@ export function AdminPanel({ pin }: Props) {
 
       {preview && (
         <div>
-          <h2>Confirm teams for "{preview.fileName}"</h2>
+          <h2>Confirm teams for "{preview.fileName}" (tab: {preview.sheetName})</h2>
           <table>
             <thead>
               <tr><th>Detected in sheet</th><th>Team</th></tr>
