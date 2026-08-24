@@ -1806,6 +1806,8 @@ Expected: FAIL (404s) — the endpoints and DI registrations don't exist yet.
 
 - [ ] **Step 3: Implement `AdminKeepersEndpoints`**
 
+Note: since .NET 8, any minimal-API endpoint that binds `IFormFile`/`IFormFileCollection` automatically gets antiforgery-validation metadata attached, and throws at request-dispatch time if no antiforgery middleware is registered. This app has none (auth is a `pin` query-string parameter on every request, no cookies, so CSRF — the threat antiforgery protects against — isn't a real risk here). The import endpoint below chains `.DisableAntiforgery()` for exactly this reason; no other endpoint in this app needs it since none of them bind file uploads.
+
 Create `backend/FantasyKeeper.Api/Endpoints/AdminKeepersEndpoints.cs`:
 
 ```csharp
@@ -1844,7 +1846,7 @@ public static class AdminKeepersEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
+        }).DisableAntiforgery();
 
         app.MapPost("/api/admin/keepers/import/confirm", (string pin, ConfirmImportRequest request, AuthService authService, KeepersImportService importService) =>
         {
