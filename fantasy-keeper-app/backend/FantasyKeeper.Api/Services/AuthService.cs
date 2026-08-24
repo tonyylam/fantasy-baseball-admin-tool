@@ -17,21 +17,10 @@ public class AuthService
     {
         if (!string.IsNullOrEmpty(pin) && pin == _adminPin)
         {
-            return new AuthResult(AuthRole.Admin, null, null);
+            return new AuthResult(AuthRole.Admin, null);
         }
 
         var team = _configStore.GetTeams().FirstOrDefault(t => t.Pin == pin);
-        if (team is null)
-        {
-            return null;
-        }
-
-        var activeSeason = _configStore.GetSeasons().FirstOrDefault(s => s.IsActive);
-        if (activeSeason is null)
-        {
-            return null;
-        }
-
-        return new AuthResult(AuthRole.Owner, team.TeamId, activeSeason.Id);
+        return team is null ? null : new AuthResult(AuthRole.Owner, team.TeamId);
     }
 }

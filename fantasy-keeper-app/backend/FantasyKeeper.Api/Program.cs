@@ -1,10 +1,6 @@
 using System.Text.Json.Serialization;
 using FantasyKeeper.Api.Endpoints;
 using FantasyKeeper.Api.Services;
-using FantasyKeeper.Api.Services.Dev;
-using FantasyKeeper.Api.Services.Google;
-using Google.Apis.Auth.OAuth2;
-using Microsoft.Extensions.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +22,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton<IConfigStore>(sp =>
 {
     var configRoot = Path.GetFullPath(sp.GetRequiredService<IConfiguration>()["ConfigRoot"] ?? "config");
-    Directory.CreateDirectory(Path.Combine(configRoot, "team-mappings"));
     return new JsonConfigStore(configRoot);
 });
 
@@ -39,44 +34,12 @@ builder.Services.AddSingleton<IKeepersDataStore>(sp =>
 
 builder.Services.AddSingleton(sp =>
 {
-    var config = sp.GetRequiredService<IConfiguration>();
-    var keyPath = config["Google:ServiceAccountKeyPath"]
-        ?? throw new InvalidOperationException("Google:ServiceAccountKeyPath must be set when Google:UseDevClients is false.");
-    return GoogleCredentialLoader.LoadFromFile(
-        keyPath,
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive");
-});
-
-builder.Services.AddSingleton<ISheetsClient>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    return config.GetValue<bool>("Google:UseDevClients")
-        ? new DevSheetsClient()
-        : new GoogleSheetsClient(sp.GetRequiredService<GoogleCredential>());
-});
-
-builder.Services.AddSingleton<IDriveClient>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    return config.GetValue<bool>("Google:UseDevClients")
-        ? new DevDriveClient()
-        : new GoogleDriveClient(sp.GetRequiredService<GoogleCredential>());
-});
-
-builder.Services.AddSingleton(sp =>
-{
     var adminPin = sp.GetRequiredService<IConfiguration>()["AdminPin"]
         ?? throw new InvalidOperationException("AdminPin must be configured.");
     return new AuthService(sp.GetRequiredService<IConfigStore>(), adminPin);
 });
 builder.Services.AddSingleton<KeepersService>();
 builder.Services.AddSingleton<KeepersImportService>();
-builder.Services.AddSingleton(sp =>
-{
-    var commissionerEmail = sp.GetRequiredService<IConfiguration>()["Google:CommissionerEmail"] ?? "";
-    return new SeasonService(sp.GetRequiredService<IConfigStore>(), sp.GetRequiredService<IDriveClient>(), commissionerEmail);
-});
 
 if (builder.Environment.IsDevelopment())
 {
@@ -92,11 +55,9 @@ if (builder.Environment.IsDevelopment())
 var app = builder.Build();
 
 // Eagerly resolve config-dependent singletons so a misconfigured deployment
-// (missing AdminPin, or a bad/missing Google:ServiceAccountKeyPath when
-// Google:UseDevClients is false) fails fast at startup instead of on the
-// first HTTP request that happens to need them.
+// (missing AdminPin) fails fast at startup instead of on the first HTTP
+// request that happens to need it.
 app.Services.GetRequiredService<AuthService>();
-app.Services.GetRequiredService<ISheetsClient>();
 
 app.UseStaticFiles();
 
@@ -107,7 +68,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAuthEndpoints();
-app.MapSeasonEndpoints();
 app.MapKeeperEndpoints();
 app.MapAdminKeepersEndpoints();
 

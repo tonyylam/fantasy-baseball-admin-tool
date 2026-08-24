@@ -31,14 +31,6 @@ public class AdminKeepersEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         Directory.CreateDirectory(_configRoot);
         Directory.CreateDirectory(_dataRoot);
 
-        var configStore = new JsonConfigStore(_configRoot);
-        // AuthService isn't updated until Task 8 and still requires an
-        // active season to authenticate a team PIN — seeded here purely to
-        // satisfy that; unrelated to the new keepers data path below.
-        configStore.SaveSeasons(new List<Season>
-        {
-            new("season-1", "2026", "dev-sheet-2026", "active", DateTimeOffset.UtcNow)
-        });
         File.WriteAllText(Path.Combine(_configRoot, "teams.json"),
             """[{"teamId":"b-squared","name":"B Squared","pin":"1111"}]""");
 

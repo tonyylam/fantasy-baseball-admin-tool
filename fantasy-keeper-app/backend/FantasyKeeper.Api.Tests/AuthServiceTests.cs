@@ -9,8 +9,7 @@ public class AuthServiceTests
 {
     private static FakeConfigStore BuildStore() => new()
     {
-        Teams = new List<Team> { new("b-squared", "B Squared", "1111") },
-        Seasons = new List<Season> { new("2026", "2026 Season", "sheet-1", "active", DateTimeOffset.UtcNow) }
+        Teams = new List<Team> { new("b-squared", "B Squared", "1111") }
     };
 
     [Fact]
@@ -24,7 +23,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public void ResolvePin_TeamPin_ReturnsOwnerWithActiveSeason()
+    public void ResolvePin_TeamPin_ReturnsOwnerWithTeamId()
     {
         var service = new AuthService(BuildStore(), "9999");
         var result = service.ResolvePin("1111");
@@ -32,7 +31,6 @@ public class AuthServiceTests
         Assert.NotNull(result);
         Assert.Equal(AuthRole.Owner, result!.Role);
         Assert.Equal("b-squared", result.TeamId);
-        Assert.Equal("2026", result.SeasonId);
     }
 
     [Fact]
