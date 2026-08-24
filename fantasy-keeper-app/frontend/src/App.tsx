@@ -19,6 +19,10 @@ export default function App() {
     getTeams(pin).then(setTeams).catch(() => setTeams([]));
   }, [pin]);
 
+  useEffect(() => {
+    setView(null);
+  }, [pin]);
+
   if (!pin || !auth) {
     return <PinEntryScreen onSubmit={login} error={error} isLoading={isLoading} />;
   }
