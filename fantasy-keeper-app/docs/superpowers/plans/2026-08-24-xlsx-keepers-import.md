@@ -270,7 +270,7 @@ data/
 
 - [ ] **Step 10: Build and run the full backend test suite**
 
-Run: `dotnet build backend/FantasyKeeper.Api.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
+Run: `dotnet build backend/FantasyKeeper.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
 Expected: builds clean, all existing tests still PASS (nothing else references the new store yet).
 
 - [ ] **Step 11: Commit**
@@ -1056,7 +1056,7 @@ Expected: 8 tests PASS.
 
 - [ ] **Step 6: Commit**
 
-Note: `backend/FantasyKeeper.Api.sln` will not build as a whole after this
+Note: `backend/FantasyKeeper.sln` will not build as a whole after this
 commit — `Endpoints/KeeperEndpoints.cs` still calls the old
 `GetKeeperDataAsync`/`UpdateKeeperDataAsync(seasonId, ...)` signatures.
 That's expected and fixed immediately in Task 5; this task's own tests
@@ -1285,7 +1285,7 @@ Expected: 4 tests PASS.
 
 - [ ] **Step 5: Build and run the full backend test suite**
 
-Run: `dotnet build backend/FantasyKeeper.Api.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
+Run: `dotnet build backend/FantasyKeeper.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
 Expected: builds clean, all tests PASS (the `SeasonEndpoints`/`SeasonService` path is untouched and still works — it's deleted in Task 8).
 
 - [ ] **Step 6: Commit**
@@ -1916,7 +1916,7 @@ Expected: 5 tests PASS.
 
 - [ ] **Step 6: Build and run the full backend test suite**
 
-Run: `dotnet build backend/FantasyKeeper.Api.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
+Run: `dotnet build backend/FantasyKeeper.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
 Expected: builds clean, all tests PASS.
 
 - [ ] **Step 7: Commit**
@@ -2295,7 +2295,7 @@ Replace the contents of `backend/FantasyKeeper.Api/appsettings.json`:
 
 - [ ] **Step 13: Build and run the full backend test suite**
 
-Run: `dotnet build backend/FantasyKeeper.Api.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
+Run: `dotnet build backend/FantasyKeeper.sln` then `dotnet test backend/FantasyKeeper.Api.Tests`
 Expected: builds clean with no leftover references to deleted types, all tests PASS.
 
 - [ ] **Step 14: Commit**
