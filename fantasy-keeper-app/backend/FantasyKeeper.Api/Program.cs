@@ -71,6 +71,7 @@ builder.Services.AddSingleton(sp =>
     return new AuthService(sp.GetRequiredService<IConfigStore>(), adminPin);
 });
 builder.Services.AddSingleton<KeepersService>();
+builder.Services.AddSingleton<KeepersImportService>();
 builder.Services.AddSingleton(sp =>
 {
     var commissionerEmail = sp.GetRequiredService<IConfiguration>()["Google:CommissionerEmail"] ?? "";
@@ -108,6 +109,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapAuthEndpoints();
 app.MapSeasonEndpoints();
 app.MapKeeperEndpoints();
+app.MapAdminKeepersEndpoints();
 
 app.MapFallbackToFile("index.html");
 
