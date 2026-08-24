@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading.Tasks;
 using FantasyKeeper.Api.Models;
 using FantasyKeeper.Api.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -12,32 +17,55 @@ namespace FantasyKeeper.Api.Tests;
 
 public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
-    // The server serializes responses with a camelCase naming policy
-    // (Task 9's ConfigureHttpJsonOptions). HttpContent.ReadFromJsonAsync<T>()
-    // defaults to case-sensitive matching when no options are passed, which
-    // would silently leave PascalCase record properties unset — so every
-    // response read below passes this explicit options instance.
     private static readonly JsonSerializerOptions ResponseJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _configRoot;
+    private readonly string _dataRoot;
 
     public KeeperEndpointsTests(WebApplicationFactory<Program> factory)
     {
         _configRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(Path.Combine(_configRoot, "team-mappings"));
+        _dataRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_configRoot);
+        Directory.CreateDirectory(_dataRoot);
 
         var configStore = new JsonConfigStore(_configRoot);
+        // AuthService isn't updated until Task 8 and still requires an
+        // active season to authenticate a team PIN — seeded here purely to
+        // satisfy that; unrelated to the new keepers data path below.
         configStore.SaveSeasons(new List<Season>
         {
             new("season-1", "2026", "dev-sheet-2026", "active", DateTimeOffset.UtcNow)
         });
         File.WriteAllText(Path.Combine(_configRoot, "teams.json"),
             """[{"teamId":"b-squared","name":"B Squared","pin":"1111"}]""");
-        configStore.SaveTeamMappings("season-1", new Dictionary<string, TeamMapping>
-        {
-            ["b-squared"] = new TeamMapping("2026 Keepers", "H8:N13", "C8:F13")
-        });
+
+        var dataStore = new FileKeepersDataStore(_dataRoot);
+        dataStore.SaveData(new KeepersData(
+            "test.xlsx",
+            "2026 Keepers",
+            DateTimeOffset.UtcNow,
+            new Dictionary<string, StoredTeamKeepers>
+            {
+                ["b-squared"] = new StoredTeamKeepers(
+                    "B Squared",
+                    7,
+                    new List<int> { 8, 9, 10, 11, 12, 13 },
+                    new List<KeeperRow>
+                    {
+                        new("T. Story", 1, 14, 2),
+                        new("", null, null, null),
+                        new("", null, null, null),
+                        new("", null, null, null),
+                        new("", null, null, null),
+                        new("", null, null, null)
+                    },
+                    new List<ExistingContractRow>
+                    {
+                        new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m)
+                    })
+            }));
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -47,6 +75,7 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConfigRoot"] = _configRoot,
+                    ["DataRoot"] = _dataRoot,
                     ["Google:UseDevClients"] = "true",
                     ["AdminPin"] = "9999"
                 });
@@ -54,7 +83,11 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
         });
     }
 
-    public void Dispose() => Directory.Delete(_configRoot, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_configRoot, recursive: true);
+        Directory.Delete(_dataRoot, recursive: true);
+    }
 
     [Fact]
     public async Task GetKeepers_WithValidTeamPin_ReturnsTeamData()
@@ -82,26 +115,21 @@ public class KeeperEndpointsTests : IClassFixture<WebApplicationFactory<Program>
             .Select(i => i == 0 ? new KeeperRow("New Guy", 3, 10, 2) : new KeeperRow("", null, null, null))
             .ToList());
 
-        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111&seasonId=season-1", payload);
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111", payload);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task PostAdminSeasons_WithOwnerPin_ReturnsUnauthorized()
+    public async Task PutKeepers_ValidSubmission_PersistsAndReturnsUpdatedData()
     {
         var client = _factory.CreateClient();
-        var response = await client.PostAsJsonAsync("/api/admin/seasons?pin=1111", new { label = "2027" });
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
+        var payload = new KeeperSubmission(Enumerable.Range(0, 6)
+            .Select(i => i == 0 ? new KeeperRow("New Guy", 1, 10, 2) : new KeeperRow("", null, null, null))
+            .ToList());
 
-    [Fact]
-    public async Task PostAdminSeasons_WithAdminPin_CreatesSeason()
-    {
-        var client = _factory.CreateClient();
-        var response = await client.PostAsJsonAsync("/api/admin/seasons?pin=9999", new { label = "2027" });
+        var response = await client.PutAsJsonAsync("/api/keepers?pin=1111", payload);
         response.EnsureSuccessStatusCode();
-        var season = await response.Content.ReadFromJsonAsync<Season>(ResponseJsonOptions);
-        Assert.Equal("2027", season!.Label);
-        Assert.True(season.IsActive);
+        var data = await response.Content.ReadFromJsonAsync<KeeperTeamData>(ResponseJsonOptions);
+        Assert.Equal("New Guy", data!.NewContracts[0].Player);
     }
 }

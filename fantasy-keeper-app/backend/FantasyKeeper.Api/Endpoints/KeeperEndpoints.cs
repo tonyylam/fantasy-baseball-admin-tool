@@ -7,16 +7,14 @@ public static class KeeperEndpoints
 {
     public static void MapKeeperEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/keepers", async (string pin, string? seasonId, AuthService authService, KeepersService keepersService) =>
+        app.MapGet("/api/keepers", (string pin, AuthService authService, KeepersService keepersService) =>
         {
             var auth = authService.ResolvePin(pin);
             if (auth is null || auth.Role != AuthRole.Owner || auth.TeamId is null) return Results.Unauthorized();
 
-            var targetSeasonId = seasonId ?? auth.SeasonId!;
-
             try
             {
-                return Results.Ok(await keepersService.GetKeeperDataAsync(targetSeasonId, auth.TeamId));
+                return Results.Ok(keepersService.GetKeeperData(auth.TeamId));
             }
             catch (NotFoundException ex)
             {
@@ -24,18 +22,14 @@ public static class KeeperEndpoints
             }
         });
 
-        app.MapPut("/api/keepers", async (string pin, string seasonId, KeeperSubmission submission, AuthService authService, KeepersService keepersService) =>
+        app.MapPut("/api/keepers", (string pin, KeeperSubmission submission, AuthService authService, KeepersService keepersService) =>
         {
             var auth = authService.ResolvePin(pin);
             if (auth is null || auth.Role != AuthRole.Owner || auth.TeamId is null) return Results.Unauthorized();
 
             try
             {
-                return Results.Ok(await keepersService.UpdateKeeperDataAsync(seasonId, auth.TeamId, submission));
-            }
-            catch (SeasonNotActiveException ex)
-            {
-                return Results.Conflict(new { error = ex.Message });
+                return Results.Ok(keepersService.UpdateKeeperData(auth.TeamId, submission));
             }
             catch (KeeperValidationException ex)
             {
