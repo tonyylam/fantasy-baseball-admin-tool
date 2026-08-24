@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using FantasyKeeper.Api.Models;
 using FantasyKeeper.Api.Services;
 using FantasyKeeper.Api.Tests.Fakes;
@@ -7,79 +9,98 @@ namespace FantasyKeeper.Api.Tests;
 
 public class KeepersServiceTests
 {
-    private static (FakeConfigStore Config, FakeSheetsClient Sheets, KeepersService Service) Build(string seasonStatus = "active")
+    private static (FakeConfigStore Config, FakeKeepersDataStore Store, KeepersService Service) Build()
     {
         var config = new FakeConfigStore
         {
-            Seasons = new List<Season> { new("2026", "2026 Season", "sheet-1", seasonStatus, DateTimeOffset.UtcNow) },
-            Teams = new List<Team> { new("b-squared", "B Squared", "1111") },
-            Mappings = new Dictionary<string, Dictionary<string, TeamMapping>>
-            {
-                ["2026"] = new()
-                {
-                    ["b-squared"] = new TeamMapping("2026 Keepers", "H8:H9", "C8:F9")
-                }
-            }
+            Teams = new List<Team> { new("b-squared", "B Squared", "1111") }
         };
 
-        var sheets = new FakeSheetsClient();
-        sheets.Seed("sheet-1", "2026 Keepers", "H8:H9", new List<IReadOnlyList<string>>
+        var store = new FakeKeepersDataStore
         {
-            new List<string> { "T. Story" },
-            new List<string> { "" }
-        });
-        sheets.Seed("sheet-1", "2026 Keepers", "C8:F9", new List<IReadOnlyList<string>>
-        {
-            new List<string> { "T. Story", "1", "14", "2" },
-            new List<string> { "", "", "", "" }
-        });
+            Data = new KeepersData(
+                "test.xlsx",
+                "2026 Keepers",
+                DateTimeOffset.UtcNow,
+                new Dictionary<string, StoredTeamKeepers>
+                {
+                    ["b-squared"] = new StoredTeamKeepers(
+                        "B Squared",
+                        7,
+                        new List<int> { 8, 9 },
+                        new List<KeeperRow>
+                        {
+                            new("T. Story", 1, 14, 2),
+                            new("", null, null, null)
+                        },
+                        new List<ExistingContractRow>
+                        {
+                            new("Jasson Dominguez", "#1 - 2/3", 3, 1.34m, 1.34m)
+                        })
+                })
+        };
 
-        return (config, sheets, new KeepersService(sheets, config));
+        return (config, store, new KeepersService(store, config));
     }
 
     [Fact]
-    public async Task GetKeeperDataAsync_ReturnsParsedRows()
+    public void GetKeeperData_ReturnsStoredRows()
     {
         var (_, _, service) = Build();
 
-        var data = await service.GetKeeperDataAsync("2026", "b-squared");
+        var data = service.GetKeeperData("b-squared");
 
         Assert.Equal("B Squared", data.TeamName);
-        Assert.False(data.ReadOnly);
         Assert.Equal("T. Story", data.NewContracts[0].Player);
         Assert.Equal(1, data.NewContracts[0].ContractType);
         Assert.Equal(14, data.NewContracts[0].Salary);
+        Assert.Equal("Jasson Dominguez", data.ExistingContracts[0].Player);
     }
 
     [Fact]
-    public async Task GetKeeperDataAsync_ArchivedSeason_IsReadOnly()
+    public void GetKeeperData_NoDataImported_Throws()
     {
-        var (_, _, service) = Build(seasonStatus: "archived");
+        var config = new FakeConfigStore { Teams = new List<Team> { new("b-squared", "B Squared", "1111") } };
+        var store = new FakeKeepersDataStore();
+        var service = new KeepersService(store, config);
 
-        var data = await service.GetKeeperDataAsync("2026", "b-squared");
-
-        Assert.True(data.ReadOnly);
+        Assert.Throws<NotFoundException>(() => service.GetKeeperData("b-squared"));
     }
 
     [Fact]
-    public async Task UpdateKeeperDataAsync_ValidSubmission_WritesRange()
+    public void UpdateKeeperData_ValidSubmission_SavesAndReturnsUpdatedRows()
     {
-        var (_, sheets, service) = Build();
+        var (_, store, service) = Build();
         var submission = new KeeperSubmission(new List<KeeperRow>
         {
             new("New Guy", 1, 10, 2),
             new("", null, null, null)
         });
 
-        await service.UpdateKeeperDataAsync("2026", "b-squared", submission);
+        var result = service.UpdateKeeperData("b-squared", submission);
 
-        var update = Assert.Single(sheets.Updates);
-        Assert.Equal("C8:F9", update.Range);
-        Assert.Equal("New Guy", update.Values[0][0]);
+        Assert.Equal("New Guy", result.NewContracts[0].Player);
+        Assert.Equal("New Guy", store.Data!.Teams["b-squared"].NewContracts[0].Player);
     }
 
     [Fact]
-    public async Task UpdateKeeperDataAsync_InvalidContractType_Throws()
+    public void UpdateKeeperData_BumpsLastUpdatedUtc()
+    {
+        var (_, store, service) = Build();
+        var before = store.Data!.LastUpdatedUtc;
+        var submission = new KeeperSubmission(new List<KeeperRow>
+        {
+            new("New Guy", 1, 10, 2),
+            new("", null, null, null)
+        });
+
+        service.UpdateKeeperData("b-squared", submission);
+
+        Assert.True(store.Data!.LastUpdatedUtc > before);
+    }
+
+    [Fact]
+    public void UpdateKeeperData_InvalidContractType_Throws()
     {
         var (_, _, service) = Build();
         var submission = new KeeperSubmission(new List<KeeperRow>
@@ -88,32 +109,16 @@ public class KeepersServiceTests
             new("", null, null, null)
         });
 
-        await Assert.ThrowsAsync<KeeperValidationException>(
-            () => service.UpdateKeeperDataAsync("2026", "b-squared", submission));
+        Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
 
     [Fact]
-    public async Task UpdateKeeperDataAsync_WrongRowCount_Throws()
+    public void UpdateKeeperData_WrongRowCount_Throws()
     {
         var (_, _, service) = Build();
         var submission = new KeeperSubmission(new List<KeeperRow> { new("New Guy", 1, 10, 2) });
 
-        await Assert.ThrowsAsync<KeeperValidationException>(
-            () => service.UpdateKeeperDataAsync("2026", "b-squared", submission));
-    }
-
-    [Fact]
-    public async Task UpdateKeeperDataAsync_ArchivedSeason_Throws()
-    {
-        var (_, _, service) = Build(seasonStatus: "archived");
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new("New Guy", 1, 10, 2),
-            new("", null, null, null)
-        });
-
-        await Assert.ThrowsAsync<SeasonNotActiveException>(
-            () => service.UpdateKeeperDataAsync("2026", "b-squared", submission));
+        Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
 
     [Theory]
@@ -121,7 +126,7 @@ public class KeepersServiceTests
     [InlineData("+1+1")]
     [InlineData("-1")]
     [InlineData("@SUM(A1)")]
-    public async Task UpdateKeeperDataAsync_PlayerNameStartsWithFormulaChar_Throws(string playerName)
+    public void UpdateKeeperData_PlayerNameStartsWithFormulaChar_Throws(string playerName)
     {
         var (_, _, service) = Build();
         var submission = new KeeperSubmission(new List<KeeperRow>
@@ -130,55 +135,15 @@ public class KeepersServiceTests
             new("", null, null, null)
         });
 
-        await Assert.ThrowsAsync<KeeperValidationException>(
-            () => service.UpdateKeeperDataAsync("2026", "b-squared", submission));
+        Assert.Throws<KeeperValidationException>(() => service.UpdateKeeperData("b-squared", submission));
     }
 
     [Fact]
-    public async Task UpdateKeeperDataAsync_TwoTeams_OnlyWritesSubmittingTeamsRange()
+    public void UpdateKeeperData_UnknownTeam_Throws()
     {
-        var config = new FakeConfigStore
-        {
-            Seasons = new List<Season> { new("2026", "2026 Season", "sheet-1", "active", DateTimeOffset.UtcNow) },
-            Teams = new List<Team>
-            {
-                new("b-squared", "B Squared", "1111"),
-                new("other-team", "Other Team", "2222")
-            },
-            Mappings = new Dictionary<string, Dictionary<string, TeamMapping>>
-            {
-                ["2026"] = new()
-                {
-                    ["b-squared"] = new TeamMapping("2026 Keepers", "H8:H9", "C8:F9"),
-                    ["other-team"] = new TeamMapping("2026 Keepers", "H20:H21", "C20:F21")
-                }
-            }
-        };
+        var (_, _, service) = Build();
+        var submission = new KeeperSubmission(new List<KeeperRow>());
 
-        var sheets = new FakeSheetsClient();
-        sheets.Seed("sheet-1", "2026 Keepers", "H8:H9", new List<IReadOnlyList<string>>
-        {
-            new List<string> { "T. Story" },
-            new List<string> { "" }
-        });
-        sheets.Seed("sheet-1", "2026 Keepers", "C8:F9", new List<IReadOnlyList<string>>
-        {
-            new List<string> { "T. Story", "1", "14", "2" },
-            new List<string> { "", "", "", "" }
-        });
-
-        var service = new KeepersService(sheets, config);
-
-        var submission = new KeeperSubmission(new List<KeeperRow>
-        {
-            new("New Guy", 1, 10, 2),
-            new("", null, null, null)
-        });
-
-        await service.UpdateKeeperDataAsync("2026", "b-squared", submission);
-
-        var update = Assert.Single(sheets.Updates);
-        Assert.Equal("C8:F9", update.Range);
-        Assert.NotEqual("C20:F21", update.Range);
+        Assert.Throws<NotFoundException>(() => service.UpdateKeeperData("nobody", submission));
     }
 }

@@ -1,71 +1,46 @@
-using System.Globalization;
 using FantasyKeeper.Api.Models;
 
 namespace FantasyKeeper.Api.Services;
 
 public class KeepersService
 {
-    private readonly ISheetsClient _sheets;
+    private readonly IKeepersDataStore _store;
     private readonly IConfigStore _configStore;
 
-    public KeepersService(ISheetsClient sheets, IConfigStore configStore)
+    public KeepersService(IKeepersDataStore store, IConfigStore configStore)
     {
-        _sheets = sheets;
+        _store = store;
         _configStore = configStore;
     }
 
-    public async Task<KeeperTeamData> GetKeeperDataAsync(string seasonId, string teamId, CancellationToken ct = default)
+    public KeeperTeamData GetKeeperData(string teamId)
     {
-        var season = FindSeason(seasonId);
         var team = FindTeam(teamId);
-        var mapping = FindMapping(seasonId, teamId);
-
-        var existingRaw = await _sheets.GetRangeAsync(season.GoogleSheetId, mapping.SheetTab, mapping.ExistingContractsRange, ct);
-        var newRaw = await _sheets.GetRangeAsync(season.GoogleSheetId, mapping.SheetTab, mapping.NewContractsRange, ct);
-
-        var existing = existingRaw.Select(ParseExistingRow).ToList();
-        var newContracts = newRaw.Select(ParseNewRow).ToList();
-
-        return new KeeperTeamData(team.Name, !season.IsActive, existing, newContracts);
+        var stored = FindStoredTeam(teamId);
+        return new KeeperTeamData(team.Name, stored.ExistingContracts, stored.NewContracts);
     }
 
-    public async Task<KeeperTeamData> UpdateKeeperDataAsync(string seasonId, string teamId, KeeperSubmission submission, CancellationToken ct = default)
+    public KeeperTeamData UpdateKeeperData(string teamId, KeeperSubmission submission)
     {
-        var season = FindSeason(seasonId);
-        if (!season.IsActive)
-        {
-            throw new SeasonNotActiveException(seasonId);
-        }
-
         var team = FindTeam(teamId);
-        var mapping = FindMapping(seasonId, teamId);
-
-        var (expectedRows, expectedCols) = A1Range.GetDimensions(mapping.NewContractsRange);
-        if (expectedCols != 4)
+        var data = _store.LoadData() ?? throw new NotFoundException("No keeper data has been imported yet.");
+        if (!data.Teams.TryGetValue(teamId, out var stored))
         {
-            throw new InvalidOperationException(
-                $"Mapping for '{teamId}' expects 4 columns (Player, Contract Type, Salary, Keeper Years) but range '{mapping.NewContractsRange}' has {expectedCols}.");
+            throw new NotFoundException($"No keeper data found for team '{teamId}'.");
         }
 
-        var errors = ValidateSubmission(submission, expectedRows);
+        var errors = ValidateSubmission(submission, stored.NewContractsRows.Count);
         if (errors.Count > 0)
         {
             throw new KeeperValidationException(errors);
         }
 
-        var values = submission.NewContracts
-            .Select(row => (IReadOnlyList<string>)new List<string>
-            {
-                row.Player ?? "",
-                row.ContractType?.ToString(CultureInfo.InvariantCulture) ?? "",
-                row.Salary?.ToString(CultureInfo.InvariantCulture) ?? "",
-                row.KeeperYears?.ToString(CultureInfo.InvariantCulture) ?? ""
-            })
-            .ToList();
+        var updatedStored = stored with { NewContracts = submission.NewContracts };
+        var updatedTeams = new Dictionary<string, StoredTeamKeepers>(data.Teams) { [teamId] = updatedStored };
+        var updatedData = data with { Teams = updatedTeams, LastUpdatedUtc = DateTimeOffset.UtcNow };
+        _store.SaveData(updatedData);
 
-        await _sheets.UpdateRangeAsync(season.GoogleSheetId, mapping.SheetTab, mapping.NewContractsRange, values, ct);
-
-        return await GetKeeperDataAsync(seasonId, teamId, ct);
+        return new KeeperTeamData(team.Name, updatedStored.ExistingContracts, updatedStored.NewContracts);
     }
 
     private static List<string> ValidateSubmission(KeeperSubmission submission, int expectedRows)
@@ -118,34 +93,6 @@ public class KeepersService
         return errors;
     }
 
-    private static KeeperRow ParseNewRow(IReadOnlyList<string> cells)
-    {
-        string Cell(int i) => i < cells.Count ? cells[i] : "";
-        return new KeeperRow(
-            Cell(0),
-            int.TryParse(Cell(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ct) ? ct : null,
-            decimal.TryParse(Cell(2), NumberStyles.Number, CultureInfo.InvariantCulture, out var salary) ? salary : null,
-            int.TryParse(Cell(3), NumberStyles.Integer, CultureInfo.InvariantCulture, out var years) ? years : null);
-    }
-
-    private static ExistingContractRow ParseExistingRow(IReadOnlyList<string> cells)
-    {
-        string Cell(int i) => i < cells.Count ? cells[i] : "";
-        return new ExistingContractRow(
-            Cell(0),
-            Cell(1),
-            decimal.TryParse(Cell(2), NumberStyles.Number, CultureInfo.InvariantCulture, out var lastYear) ? lastYear : null,
-            decimal.TryParse(Cell(3), NumberStyles.Number, CultureInfo.InvariantCulture, out var leagueValue) ? leagueValue : null,
-            decimal.TryParse(Cell(4), NumberStyles.Number, CultureInfo.InvariantCulture, out var thisYear) ? thisYear : null);
-    }
-
-    private Season FindSeason(string seasonId)
-    {
-        var season = _configStore.GetSeasons().FirstOrDefault(s => s.Id == seasonId);
-        if (season is null) throw new NotFoundException($"Season '{seasonId}' not found.");
-        return season;
-    }
-
     private Team FindTeam(string teamId)
     {
         var team = _configStore.GetTeams().FirstOrDefault(t => t.TeamId == teamId);
@@ -153,13 +100,13 @@ public class KeepersService
         return team;
     }
 
-    private TeamMapping FindMapping(string seasonId, string teamId)
+    private StoredTeamKeepers FindStoredTeam(string teamId)
     {
-        var mappings = _configStore.GetTeamMappings(seasonId);
-        if (!mappings.TryGetValue(teamId, out var mapping))
+        var data = _store.LoadData() ?? throw new NotFoundException("No keeper data has been imported yet.");
+        if (!data.Teams.TryGetValue(teamId, out var stored))
         {
-            throw new NotFoundException($"No mapping for team '{teamId}' in season '{seasonId}'.");
+            throw new NotFoundException($"No keeper data found for team '{teamId}'.");
         }
-        return mapping;
+        return stored;
     }
 }
