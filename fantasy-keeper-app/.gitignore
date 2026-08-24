@@ -12,3 +12,6 @@ backend/FantasyKeeper.Api/wwwroot/
 # Secrets and local config
 backend/FantasyKeeper.Api/appsettings.Development.json
 secrets/
+
+# Runtime data
+data/

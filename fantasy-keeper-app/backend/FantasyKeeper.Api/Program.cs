@@ -30,6 +30,13 @@ builder.Services.AddSingleton<IConfigStore>(sp =>
     return new JsonConfigStore(configRoot);
 });
 
+builder.Services.AddSingleton<IKeepersDataStore>(sp =>
+{
+    var dataRoot = Path.GetFullPath(sp.GetRequiredService<IConfiguration>()["DataRoot"] ?? "data");
+    Directory.CreateDirectory(dataRoot);
+    return new FileKeepersDataStore(dataRoot);
+});
+
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
