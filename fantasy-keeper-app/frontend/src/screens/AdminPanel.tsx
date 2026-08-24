@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { getAdminTeams, importKeepers, confirmImport, getKeepersStatus, exportKeepers } from "../api/client";
+import { getTeams, importKeepers, confirmImport, getKeepersStatus, exportKeepers } from "../api/client";
 import type { TeamSummary, ImportPreview, BlockAssignment, KeepersStatus } from "../types";
 
 interface Props {
@@ -19,7 +19,7 @@ export function AdminPanel({ pin }: Props) {
   const [message, setMessage] = useState<string | null>(null);
 
   function refresh() {
-    getAdminTeams(pin).then(setTeams).catch(() => setTeams([]));
+    getTeams(pin).then(setTeams).catch(() => setTeams([]));
     getKeepersStatus(pin).then(setStatus).catch(() => setStatus(null));
   }
 

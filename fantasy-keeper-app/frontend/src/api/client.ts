@@ -42,19 +42,24 @@ export function authenticate(pin: string): Promise<AuthResult> {
   });
 }
 
-export function getKeepers(pin: string): Promise<KeeperTeamData> {
-  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}`);
+export function getKeepers(pin: string, teamId: string): Promise<KeeperTeamData> {
+  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}&teamId=${encodeURIComponent(teamId)}`);
 }
 
-export function updateKeepers(pin: string, newContracts: KeeperRow[]): Promise<KeeperTeamData> {
-  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}`, {
+export function updateKeepers(
+  pin: string,
+  teamId: string,
+  newContracts: KeeperRow[],
+  deletedExistingContractIndices: number[]
+): Promise<KeeperTeamData> {
+  return request<KeeperTeamData>(`/api/keepers?pin=${encodeURIComponent(pin)}&teamId=${encodeURIComponent(teamId)}`, {
     method: "PUT",
-    body: JSON.stringify({ newContracts })
+    body: JSON.stringify({ newContracts, deletedExistingContractIndices })
   });
 }
 
-export function getAdminTeams(pin: string): Promise<TeamSummary[]> {
-  return request<TeamSummary[]>(`/api/admin/teams?pin=${encodeURIComponent(pin)}`);
+export function getTeams(pin: string): Promise<TeamSummary[]> {
+  return request<TeamSummary[]>(`/api/teams?pin=${encodeURIComponent(pin)}`);
 }
 
 export async function importKeepers(pin: string, file: File): Promise<ImportPreview> {

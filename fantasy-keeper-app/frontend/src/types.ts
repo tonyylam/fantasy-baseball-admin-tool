@@ -18,10 +18,12 @@ export interface ExistingContractRow {
   lastYearSalary: number | null;
   leagueValue: number | null;
   thisYearSalary: number | null;
+  deleted: boolean;
 }
 
 export interface KeeperTeamData {
   teamName: string;
+  canEdit: boolean;
   existingContracts: ExistingContractRow[];
   newContracts: KeeperRow[];
 }
