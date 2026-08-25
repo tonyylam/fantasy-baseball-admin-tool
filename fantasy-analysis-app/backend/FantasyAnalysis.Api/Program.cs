@@ -1,8 +1,14 @@
+using System.Text.Json.Serialization;
 using Anthropic;
 using FantasyAnalysis.Api.Endpoints;
 using FantasyAnalysis.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 if (builder.Environment.IsDevelopment())
 {

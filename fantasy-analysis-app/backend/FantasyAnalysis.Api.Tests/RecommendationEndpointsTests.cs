@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using FantasyAnalysis.Api.Models;
 using FantasyAnalysis.Api.Services;
@@ -24,7 +26,14 @@ public class RecommendationEndpointsTests : IClassFixture<WebApplicationFactory<
         var leagueStore = new FakeLeagueDataStore();
         leagueStore.SaveLeague(league);
         var settings = new ScoringSettings(new List<ScoringCategory>(), new List<ScoringCategory>(), new Dictionary<string, int>());
-        var responseJson = """{ "waiverSuggestions": [], "tradeSuggestions": [] }""";
+        var responseJson = """
+            {
+                "waiverSuggestions": [
+                    { "summary": "Pick up Jane Doe", "reasoning": "Better projected value than your current utility slot.", "involvedPlayerIds": ["jane-doe"], "citations": [] }
+                ],
+                "tradeSuggestions": []
+            }
+            """;
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -69,7 +78,20 @@ public class RecommendationEndpointsTests : IClassFixture<WebApplicationFactory<
 
         var getResponse = await client.GetAsync("/api/recommendations");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-        var set = await getResponse.Content.ReadFromJsonAsync<RecommendationSet>();
+
+        // Read the raw HTTP response body (not through the file store) to verify that
+        // RecommendationType is actually serialized as a string ("Waiver") on the wire,
+        // not the enum's underlying int (0). A test that only round-trips through
+        // ReadFromJsonAsync<RecommendationSet> with default options would pass either way
+        // once JsonStringEnumConverter is registered, so we assert on the raw text too.
+        var rawJson = await getResponse.Content.ReadAsStringAsync();
+        Assert.Contains("\"type\":\"Waiver\"", rawJson);
+
+        var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new JsonStringEnumConverter());
+        var set = JsonSerializer.Deserialize<RecommendationSet>(rawJson, jsonOptions);
         Assert.NotNull(set);
+        var waiverSuggestion = Assert.Single(set!.WaiverSuggestions);
+        Assert.Equal(RecommendationType.Waiver, waiverSuggestion.Type);
     }
 }
