@@ -27,6 +27,12 @@ describe("ScoringSettingsScreen", () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
 
+    // Verify the actual request body sent to the API
+    const savedBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(savedBody.hittingCategories).toEqual([{ statKey: "homeRuns", pointsPerUnit: 4 }]);
+    expect(savedBody.pitchingCategories).toEqual([]);
+    expect(savedBody.rosterSlots).toEqual({});
+
     vi.unstubAllGlobals();
   });
 });
