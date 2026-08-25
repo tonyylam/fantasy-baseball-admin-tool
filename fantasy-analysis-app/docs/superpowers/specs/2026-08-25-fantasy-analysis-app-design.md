@@ -53,8 +53,16 @@ file persistence, no database.
   and last-generated recommendations. No database; single-user and low
   write volume don't justify one.
 - **External services**:
-  - MySportsFeeds API (personal/non-commercial tier) for MLB player
-    data and stat lines.
+  - MLB Stats API (`statsapi.mlb.com`) for MLB player data and stat
+    lines. This is MLB's own public API — no signup, no API key, no
+    cost — confirmed working during design (both the active-player
+    list and per-player stat lines returned real data live). It's
+    unofficial/undocumented for third-party use, which is a real risk
+    (see Error Handling): it could change shape or access policy
+    without notice. (Originally scoped around MySportsFeeds, but its
+    personal tier turned out to require a $5/month subscription, not
+    the free tier assumed during brainstorming — swapped before
+    implementation for a genuinely free option.)
   - Anthropic API, model `claude-opus-5`, via the official C# SDK,
     with the `web_search_20260209` server tool enabled on the
     recommendation call.
@@ -70,8 +78,8 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
   the imported league as JSON.
 - `IScoringSettingsStore` / `FileScoringSettingsStore` — persists the
   user's scoring settings.
-- `IStatsProvider` / `MlbStatsProvider` — wraps the MySportsFeeds API.
-  Exposes both:
+- `IStatsProvider` / `MlbStatsProvider` — wraps the MLB Stats API
+  (`statsapi.mlb.com`). Exposes both:
   - `GetAllActivePlayersAsync()` — the full current MLB player
     universe, used to compute the waiver pool.
   - `GetPlayerStatsAsync(playerIds)` — bulk stat lines.
@@ -79,9 +87,9 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
   implement the same interface for a later sport.
 - `IStatsCache` / `FileStatsCache` — caches fetched stats with a
   refresh interval (TTL) so repeated analysis doesn't re-hit
-  MySportsFeeds on every request.
+  the MLB Stats API on every request.
 - `IPlayerMatchingService` — fuzzy-matches CSV player names against
-  the MySportsFeeds player universe and produces a best-guess match
+  the MLB Stats API's player universe and produces a best-guess match
   per player for the review step (see Data Flow).
 - `IRecommendationEngine` / `ClaudeRecommendationEngine` — assembles
   prompt context (user's roster with stats, a numerically pre-filtered
@@ -109,7 +117,7 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
 
 - **Import** — CSV upload.
 - **Player match review** — each parsed player next to a best-guess
-  MySportsFeeds match; confirm, correct via dropdown/search, or mark
+  MLB Stats API match; confirm, correct via dropdown/search, or mark
   unresolved, then confirm import. Mirrors the keeper app's
   team-matching review UI.
 - **Scoring settings** — a form for points/categories and roster
@@ -162,10 +170,14 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
 
 ## Error Handling
 
-- **MySportsFeeds unavailable or rate-limited**: serve cached stats
-  with a visible staleness indicator. If no cache exists yet for a
-  needed player, surface a clear error rather than silently falling
-  back to an all-web-search analysis.
+- **MLB Stats API unavailable, rate-limited, or its response shape
+  changes unexpectedly** (a real risk given it's unofficial/
+  undocumented for third-party use): serve cached stats with a visible
+  staleness indicator. If no cache exists yet for a needed player,
+  surface a clear error rather than silently falling back to an
+  all-web-search analysis. Parsing code should fail loudly (a typed
+  exception) on unexpected/missing fields rather than silently
+  producing wrong stats.
 - **Unmatched players** from the review step: excluded from analysis
   with a visible warning until the user resolves them.
 - **Claude API errors**: handled via a most-specific-first exception
@@ -183,7 +195,7 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
   app's `KeeperWorkbookParser` test pattern.
 - **Player matching service**: unit tests covering exact matches,
   fuzzy/suffix/diacritic variants, and no-match cases.
-- **Stats provider**: unit tests against mocked MySportsFeeds
+- **Stats provider**: unit tests against mocked MLB Stats API
   responses (no live calls in CI).
 - **Recommendation engine**: unit tests for context/prompt assembly
   and response parsing; the Anthropic client is mocked so CI doesn't
@@ -193,12 +205,14 @@ sibling app's `IKeepersDataStore`/`FileKeepersDataStore` pattern)
 
 ## Open Questions / Follow-ups (not blocking v1)
 
-- Exact MySportsFeeds endpoints and response shapes should be
-  confirmed against current API docs during implementation — this
-  spec assumes it can supply both a full active-player list and bulk
-  stat lines for the personal/non-commercial tier, but exact query
-  parameters/pagination weren't verified against live docs during
-  brainstorming.
+- The MLB Stats API is unofficial/undocumented for third-party use.
+  Endpoint shapes were confirmed live during design
+  (`/api/v1/sports/1/players?season={year}` for the player list,
+  `/api/v1/people/{id}/stats?stats=season&group=hitting&season={year}`
+  for per-player stat lines, `group=pitching` for pitchers), but there
+  is no published bulk/leaderboard endpoint confirmed to work — the
+  implementation fetches stats per-player, concurrently with a
+  throttle, rather than assuming an unverified bulk call.
 - Exact scoring-settings schema (which categories/points fields the
   form exposes) should be nailed down during implementation based on
   the user's actual league rules.
