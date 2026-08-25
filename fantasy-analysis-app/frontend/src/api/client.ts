@@ -1,4 +1,4 @@
-import type { ConfirmImportRequest, ImportPreview, League, ScoringSettings } from "../types";
+import type { ConfirmImportRequest, ImportPreview, League, RecommendationSet, ScoringSettings } from "../types";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -65,4 +65,19 @@ export function saveScoringSettings(settings: ScoringSettings): Promise<ScoringS
     method: "PUT",
     body: JSON.stringify(settings)
   });
+}
+
+export function refreshRecommendations(teamName: string): Promise<RecommendationSet> {
+  return request<RecommendationSet>(`/api/recommendations/refresh?teamName=${encodeURIComponent(teamName)}`, {
+    method: "POST"
+  });
+}
+
+export async function getRecommendations(): Promise<RecommendationSet | null> {
+  try {
+    return await request<RecommendationSet>("/api/recommendations");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
