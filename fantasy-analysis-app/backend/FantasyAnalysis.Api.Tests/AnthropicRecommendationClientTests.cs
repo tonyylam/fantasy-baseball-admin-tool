@@ -1,6 +1,8 @@
 using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Anthropic;
+using Anthropic.Exceptions;
 using FantasyAnalysis.Api.Models;
 using FantasyAnalysis.Api.Services;
 using Xunit;
@@ -19,11 +21,22 @@ public class AnthropicRecommendationClientTests
         };
         var client = new AnthropicRecommendationClient(anthropicClient);
 
-        // A connection-level exception here proves the request was built and dispatched;
-        // any exception before that (e.g. a schema-construction bug) would throw synchronously
-        // during GetRecommendationsJsonAsync's setup, before the awaited call, and this assertion
-        // would fail with the wrong exception type instead.
-        await Assert.ThrowsAnyAsync<Exception>(() =>
+        // AnthropicRecommendationClient catches any exception thrown while awaiting the SDK
+        // call and wraps it as RecommendationClientException, preserving the original as
+        // InnerException. Because that catch is inside the async method body, a plain
+        // Assert.ThrowsAnyAsync<Exception> would pass identically whether the failure came
+        // from the network or from a bug in request/schema construction (e.g. a
+        // NullReferenceException in BuildSchema) - both get captured into the returned
+        // Task's fault state the same way. To actually distinguish them, assert on the
+        // wrapped exception's InnerException type: the Anthropic SDK surfaces a connection
+        // failure as AnthropicIOException, whose own InnerException is the underlying
+        // HttpRequestException ("actively refused") from HttpClient. A construction-time bug
+        // would surface as some other exception type instead, so this assertion would
+        // correctly fail if that regression were reintroduced.
+        var ex = await Assert.ThrowsAsync<RecommendationClientException>(() =>
             client.GetRecommendationsJsonAsync("system prompt", "user prompt"));
+
+        var ioException = Assert.IsType<AnthropicIOException>(ex.InnerException);
+        Assert.IsType<HttpRequestException>(ioException.InnerException);
     }
 }
