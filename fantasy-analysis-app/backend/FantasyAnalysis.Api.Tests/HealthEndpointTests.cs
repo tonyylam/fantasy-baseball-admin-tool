@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace FantasyAnalysis.Api.Tests;
@@ -12,7 +14,13 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 
     public HealthEndpointTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory;
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["AnthropicApiKey"] = "test-key" });
+            });
+        });
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using FantasyAnalysis.Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace FantasyAnalysis.Api.Tests;
@@ -14,7 +15,13 @@ public class ScoringSettingsEndpointsTests : IClassFixture<WebApplicationFactory
 
     public ScoringSettingsEndpointsTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory;
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["AnthropicApiKey"] = "test-key" });
+            });
+        });
     }
 
     [Fact]

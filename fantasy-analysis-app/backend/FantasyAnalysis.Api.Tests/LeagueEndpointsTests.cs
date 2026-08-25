@@ -6,6 +6,7 @@ using FantasyAnalysis.Api.Models;
 using FantasyAnalysis.Api.Services;
 using FantasyAnalysis.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -18,11 +19,18 @@ public class LeagueEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     public LeagueEndpointsTests(WebApplicationFactory<Program> factory)
     {
         var pool = new List<MlbPlayer> { new("660271", "Shohei Ohtani", "DH", false, 119) };
-        _factory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        _factory = factory.WithWebHostBuilder(builder =>
         {
-            services.AddSingleton<IStatsProvider>(new FakeStatsProvider(pool));
-            services.AddSingleton<ILeagueDataStore>(new FakeLeagueDataStore());
-        }));
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["AnthropicApiKey"] = "test-key" });
+            });
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IStatsProvider>(new FakeStatsProvider(pool));
+                services.AddSingleton<ILeagueDataStore>(new FakeLeagueDataStore());
+            });
+        });
     }
 
     [Fact]
