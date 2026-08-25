@@ -4142,10 +4142,52 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
               value={category.pointsPerUnit}
               onChange={(e) => updateCategory(list, setList, index, "pointsPerUnit", e.target.value)}
             />
+            <button type="button" onClick={() => setList(list.filter((_, i) => i !== index))}>
+              Remove
+            </button>
           </div>
         ))}
         <button type="button" onClick={() => setList([...list, { statKey: "", pointsPerUnit: 0 }])}>
           Add {label} Category
+        </button>
+      </fieldset>
+    );
+  }
+
+  function rosterSlotRows() {
+    return (
+      <fieldset>
+        <legend>Roster Slots</legend>
+        {rosterSlots.map(([position, count], index) => (
+          <div key={index}>
+            <label htmlFor={`roster-slot-position-${index}`}>Roster slot position {index}</label>
+            <input
+              id={`roster-slot-position-${index}`}
+              value={position}
+              onChange={(e) => {
+                const next = [...rosterSlots];
+                next[index] = [e.target.value, next[index][1]];
+                setRosterSlots(next);
+              }}
+            />
+            <label htmlFor={`roster-slot-count-${index}`}>Roster slot count {index}</label>
+            <input
+              id={`roster-slot-count-${index}`}
+              type="number"
+              value={count}
+              onChange={(e) => {
+                const next = [...rosterSlots];
+                next[index] = [next[index][0], Number(e.target.value)];
+                setRosterSlots(next);
+              }}
+            />
+            <button type="button" onClick={() => setRosterSlots(rosterSlots.filter((_, i) => i !== index))}>
+              Remove
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={() => setRosterSlots([...rosterSlots, ["", 0]])}>
+          Add Roster Slot
         </button>
       </fieldset>
     );
@@ -4171,6 +4213,7 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
       <h1>Scoring Settings</h1>
       {categoryRows("Hitting", hitting, setHitting)}
       {categoryRows("Pitching", pitching, setPitching)}
+      {rosterSlotRows()}
       <button onClick={handleSave} disabled={saving}>
         Save
       </button>
