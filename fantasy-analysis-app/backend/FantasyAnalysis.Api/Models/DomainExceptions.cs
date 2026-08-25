@@ -16,3 +16,8 @@ public class RecommendationClientException : Exception
     public RecommendationClientException(string message) : base(message) { }
     public RecommendationClientException(string message, Exception innerException) : base(message, innerException) { }
 }
+
+public class RecommendationPrerequisiteException : Exception
+{
+    public RecommendationPrerequisiteException(string message) : base(message) { }
+}
