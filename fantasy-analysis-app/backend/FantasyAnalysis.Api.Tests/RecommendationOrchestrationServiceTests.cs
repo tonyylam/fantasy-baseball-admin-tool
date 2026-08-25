@@ -29,6 +29,15 @@ public class RecommendationOrchestrationServiceTests
         ScoringSettings? settings,
         out FakeRecommendationDataStore recommendationStore)
     {
+        return BuildService(league, settings, out recommendationStore, out _);
+    }
+
+    private static RecommendationOrchestrationService BuildService(
+        League? league,
+        ScoringSettings? settings,
+        out FakeRecommendationDataStore recommendationStore,
+        out FakeStatsCache statsCache)
+    {
         var pool = new List<MlbPlayer> { new("665742", "Juan Soto", "OF", false, 121) };
         var statsProvider = new FakeStatsProvider(pool, new List<StatLine>
         {
@@ -40,12 +49,13 @@ public class RecommendationOrchestrationServiceTests
         var responseJson = """{ "waiverSuggestions": [], "tradeSuggestions": [] }""";
         var engine = new ClaudeRecommendationEngine(new FakeRecommendationClient(responseJson), new FantasyValueRanker());
         recommendationStore = new FakeRecommendationDataStore();
+        statsCache = new FakeStatsCache();
 
         return new RecommendationOrchestrationService(
             leagueStore,
             new FakeScoringSettingsStore(settings),
             statsProvider,
-            new FakeStatsCache(),
+            statsCache,
             new WaiverPoolCalculator(),
             new FantasyValueRanker(),
             engine,
@@ -71,12 +81,18 @@ public class RecommendationOrchestrationServiceTests
     [Fact]
     public async Task RefreshAsync_HappyPath_SavesAndReturnsRecommendations()
     {
-        var service = BuildService(League, Settings, out var recommendationStore);
+        var service = BuildService(League, Settings, out var recommendationStore, out var statsCache);
 
         var result = await service.RefreshAsync("Rhino Wranglers");
 
         Assert.NotNull(result);
         Assert.Same(result, recommendationStore.Saved);
         Assert.Equal(result, service.GetLast());
+
+        // Proves the cache-miss -> fetch -> store sequence actually ran with the right data,
+        // not just that some result came back.
+        Assert.NotNull(statsCache.LastStored);
+        Assert.Equal(SeasonClock.Current, statsCache.LastStored!.Value.Season);
+        Assert.Contains(statsCache.LastStored.Value.StatLines, s => s.PlayerId == "665742");
     }
 }
