@@ -10,3 +10,9 @@ public class StatsProviderException : Exception
     public StatsProviderException(string message) : base(message) { }
     public StatsProviderException(string message, Exception innerException) : base(message, innerException) { }
 }
+
+public class RecommendationClientException : Exception
+{
+    public RecommendationClientException(string message) : base(message) { }
+    public RecommendationClientException(string message, Exception innerException) : base(message, innerException) { }
+}
