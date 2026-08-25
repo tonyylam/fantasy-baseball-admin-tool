@@ -104,7 +104,12 @@ public class MlbStatsProvider : IStatsProvider
             throw new StatsProviderException($"MLB Stats API stats response for player {playerId} was not valid JSON.", ex);
         }
 
-        var split = parsed?.Stats?.SelectMany(s => s.Splits ?? new List<SplitDto>()).FirstOrDefault();
+        if (parsed?.Stats is null)
+        {
+            throw new StatsProviderException($"MLB Stats API stats response for player {playerId} ({group}) did not contain a \"stats\" array.");
+        }
+
+        var split = parsed.Stats.SelectMany(s => s.Splits ?? new List<SplitDto>()).FirstOrDefault();
         if (split?.Stat is null || split.Stat.Count == 0) return null;
 
         var stats = new Dictionary<string, decimal>();

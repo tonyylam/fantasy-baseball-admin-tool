@@ -120,4 +120,17 @@ public class MlbStatsProviderTests
         Assert.Contains(lines, l => l.Group == "hitting");
         Assert.Contains(lines, l => l.Group == "pitching");
     }
+
+    [Fact]
+    public async Task GetPlayerStatsAsync_MissingStatsArray_ThrowsStatsProviderException()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
+        });
+        var client = new HttpClient(handler) { BaseAddress = new System.Uri("https://statsapi.mlb.com/") };
+        var provider = new MlbStatsProvider(client);
+
+        await Assert.ThrowsAsync<StatsProviderException>(() => provider.GetPlayerStatsAsync(new[] { "660271" }, 2026));
+    }
 }
