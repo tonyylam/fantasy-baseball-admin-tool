@@ -14,24 +14,27 @@ export function App() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [yourTeamName, setYourTeamName] = useState<string | null>(null);
   const [hasSettings, setHasSettings] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getLeague(), getScoringSettings()]).then(([loadedLeague, settings]) => {
-      setLeague(loadedLeague);
-      setHasSettings(settings !== null);
-      const storedTeam = localStorage.getItem("yourTeamName");
-      setYourTeamName(storedTeam);
+    Promise.all([getLeague(), getScoringSettings()])
+      .then(([loadedLeague, settings]) => {
+        setLeague(loadedLeague);
+        setHasSettings(settings !== null);
+        const storedTeam = localStorage.getItem("yourTeamName");
+        setYourTeamName(storedTeam);
 
-      if (!loadedLeague) {
-        setScreen("import");
-      } else if (!storedTeam || !loadedLeague.teams.some((t) => t.teamName === storedTeam)) {
-        setScreen("teamPicker");
-      } else if (settings === null) {
-        setScreen("settings");
-      } else {
-        setScreen("dashboard");
-      }
-    });
+        if (!loadedLeague) {
+          setScreen("import");
+        } else if (!storedTeam || !loadedLeague.teams.some((t) => t.teamName === storedTeam)) {
+          setScreen("teamPicker");
+        } else if (settings === null) {
+          setScreen("settings");
+        } else {
+          setScreen("dashboard");
+        }
+      })
+      .catch(() => setLoadError("Failed to load. Please refresh the page."));
   }, []);
 
   function handlePreviewReady(nextPreview: ImportPreview) {
@@ -53,10 +56,12 @@ export function App() {
 
   function handleSettingsSaved() {
     setHasSettings(true);
-    setScreen("dashboard");
+    setScreen(yourTeamName ? "dashboard" : "teamPicker");
   }
 
-  if (screen === "loading") return <p>Loading...</p>;
+  if (screen === "loading") {
+    return loadError ? <p role="alert">{loadError}</p> : <p>Loading...</p>;
+  }
 
   return (
     <div>

@@ -69,4 +69,51 @@ describe("App", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("shows an error instead of a permanent loading state when the initial load fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(/failed to load/i);
+    expect(screen.queryByText(/^loading\.\.\.$/i)).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("routes to the team picker (not a blank screen) after saving settings with no team chosen yet", async () => {
+    const league: League = {
+      importedAtUtc: "2026-01-01T00:00:00Z",
+      teams: [{ teamName: "Rhino Wranglers", players: [] }]
+    };
+    const settings: ScoringSettings = { hittingCategories: [], pitchingCategories: [], rosterSlots: {} };
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes("/api/league") && !url.includes("import")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(league) });
+      }
+      if (url.includes("/api/settings/scoring") && init?.method === "PUT") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(settings) });
+      }
+      if (url.includes("/api/settings/scoring")) {
+        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText(/which team is yours/i)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: /scoring settings/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(screen.getByText(/which team is yours/i)).toBeInTheDocument());
+    expect(screen.queryByText(/dashboard$/i, { selector: "h1" })).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
 });
