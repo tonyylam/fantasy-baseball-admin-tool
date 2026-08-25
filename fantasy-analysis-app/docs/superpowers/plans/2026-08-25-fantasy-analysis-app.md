@@ -25,7 +25,7 @@
 
 **Backend** (`backend/FantasyAnalysis.Api/`):
 - `Program.cs` — DI wiring, endpoint mapping, static file serving.
-- `Models/Player.cs`, `Models/TeamRoster.cs`, `Models/League.cs`, `Models/PlayerMatch.cs`, `Models/ScoringSettings.cs`, `Models/StatLine.cs`, `Models/Recommendation.cs`, `Models/RecommendationSet.cs` — plain records.
+- `Models/Player.cs` (parsed, pre-match shapes), `Models/League.cs` (persisted, post-match shapes: `RosteredPlayer`/`TeamRoster`/`League`), `Models/MlbPlayer.cs`, `Models/StatLine.cs`, `Models/PlayerMatch.cs`, `Models/ImportModels.cs`, `Models/ScoringSettings.cs`, `Models/StatsCacheEntry.cs`, `Models/Recommendation.cs` (includes `RecommendationType`/`Recommendation`/`RecommendationSet`), `Models/DomainExceptions.cs` — plain records (and typed exceptions).
 - `Services/RosterCsvParser.cs` — CSV → parsed teams/players.
 - `Services/ILeagueDataStore.cs` / `FileLeagueDataStore.cs` — league persistence.
 - `Services/IStatsProvider.cs` / `MlbStatsProvider.cs` — `statsapi.mlb.com` client.
@@ -217,8 +217,6 @@ git commit -m "Scaffold backend project with health endpoint"
 
 **Files:**
 - Create: `backend/FantasyAnalysis.Api/Models/Player.cs`
-- Create: `backend/FantasyAnalysis.Api/Models/TeamRoster.cs`
-- Create: `backend/FantasyAnalysis.Api/Models/League.cs`
 - Create: `backend/FantasyAnalysis.Api/Models/DomainExceptions.cs`
 - Create: `backend/FantasyAnalysis.Api/Services/RosterCsvParser.cs`
 - Test: `backend/FantasyAnalysis.Api.Tests/RosterCsvParserTests.cs`
@@ -373,13 +371,13 @@ git commit -m "Add roster CSV parser"
 ### Task 3: Persisted league models + FileLeagueDataStore
 
 **Files:**
-- Create: `backend/FantasyAnalysis.Api/Models/League.cs` (extend — this task adds the persisted shapes alongside Task 2's `ParsedLeague`)
+- Create: `backend/FantasyAnalysis.Api/Models/League.cs`
 - Create: `backend/FantasyAnalysis.Api/Services/ILeagueDataStore.cs`
 - Create: `backend/FantasyAnalysis.Api/Services/FileLeagueDataStore.cs`
 - Test: `backend/FantasyAnalysis.Api.Tests/FileLeagueDataStoreTests.cs`
 
 **Interfaces:**
-- Consumes: nothing from prior tasks (models are additive to `Models/League.cs`).
+- Consumes: nothing from prior tasks. (Task 2's `ParsedLeague`/`ParsedTeamRoster` live in a separate file, `Models/Player.cs` — this task's `League`/`TeamRoster`/`RosteredPlayer` are the distinct, persisted shapes, in their own new file.)
 - Produces: `record RosteredPlayer(string CsvName, string PlayerId, string PlayerFullName, string Position, bool IsPitcher)`, `record TeamRoster(string TeamName, IReadOnlyList<RosteredPlayer> Players)`, `record League(DateTimeOffset ImportedAtUtc, IReadOnlyList<TeamRoster> Teams)`, and `interface ILeagueDataStore { League? LoadLeague(); void SaveLeague(League league); }` implemented by `FileLeagueDataStore(string dataRoot)`. These are the types every later task (matching, waiver pool, recommendation context) reads.
 
 - [ ] **Step 1: Write the failing test**
@@ -461,9 +459,11 @@ Expected: FAIL (types don't exist yet)
 
 - [ ] **Step 3: Add the persisted models**
 
-Append to `backend/FantasyAnalysis.Api/Models/League.cs`:
+Create `backend/FantasyAnalysis.Api/Models/League.cs`:
 
 ```csharp
+namespace FantasyAnalysis.Api.Models;
+
 public record RosteredPlayer(string CsvName, string PlayerId, string PlayerFullName, string Position, bool IsPitcher);
 
 public record TeamRoster(string TeamName, IReadOnlyList<RosteredPlayer> Players);
@@ -3356,13 +3356,14 @@ builder.Services.AddSingleton<RecommendationOrchestrationService>();
 
 Add `using Anthropic;` to the top of `Program.cs`.
 
-After `var app = builder.Build();`, alongside the existing eager-resolution line, add:
+After `var app = builder.Build();`, add:
 
 ```csharp
+// Fails fast at startup if AnthropicApiKey is missing, rather than on the first request
+// that happens to need it — same rationale as the sibling app's eager AuthService
+// resolution for AdminPin.
 app.Services.GetRequiredService<Anthropic.AnthropicClient>();
 ```
-
-(This fails fast at startup if `AnthropicApiKey` is missing, same rationale as the sibling app's eager `AuthService` resolution for `AdminPin`.)
 
 After `app.MapScoringSettingsEndpoints();`, add:
 
