@@ -81,3 +81,12 @@ export async function getRecommendations(): Promise<RecommendationSet | null> {
     throw err;
   }
 }
+
+export async function getLeague(): Promise<League | null> {
+  try {
+    return await request<League>("/api/league");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
