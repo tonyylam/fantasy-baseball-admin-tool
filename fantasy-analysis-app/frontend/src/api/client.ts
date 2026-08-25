@@ -1,4 +1,4 @@
-import type { ImportPreview } from "../types";
+import type { ConfirmImportRequest, ImportPreview, League } from "../types";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -28,4 +28,25 @@ export async function importLeague(file: File): Promise<ImportPreview> {
   }
 
   return response.json() as Promise<ImportPreview>;
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers }
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, body);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export function confirmImport(confirmRequest: ConfirmImportRequest): Promise<League> {
+  return request<League>("/api/league/import/confirm", {
+    method: "POST",
+    body: JSON.stringify(confirmRequest)
+  });
 }
