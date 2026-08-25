@@ -62,7 +62,7 @@ export function App() {
     <div>
       {league && (
         <header>
-          <button onClick={() => setScreen("dashboard")}>Dashboard</button>
+          <button onClick={() => setScreen(yourTeamName ? "dashboard" : "teamPicker")}>Dashboard</button>
           <button onClick={() => setScreen("settings")}>Scoring Settings</button>
           <button onClick={() => setScreen("import")}>Re-import League</button>
         </header>

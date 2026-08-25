@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { League, ScoringSettings } from "./types";
@@ -42,6 +42,31 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByText(/rhino wranglers dashboard/i)).toBeInTheDocument());
+    vi.unstubAllGlobals();
+  });
+
+  it("routes the header's Dashboard button to the team picker, not a blank screen, when no team is chosen yet", async () => {
+    const league: League = {
+      importedAtUtc: "2026-01-01T00:00:00Z",
+      teams: [{ teamName: "Rhino Wranglers", players: [] }]
+    };
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/api/league") && !url.includes("import")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(league) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText(/which team is yours/i)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: /^dashboard$/i }));
+
+    expect(screen.getByText(/which team is yours/i)).toBeInTheDocument();
+    expect(screen.queryByText(/dashboard$/i, { selector: "h1" })).not.toBeInTheDocument();
+
     vi.unstubAllGlobals();
   });
 });

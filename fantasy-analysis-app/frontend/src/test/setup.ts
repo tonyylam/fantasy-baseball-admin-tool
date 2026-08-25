@@ -1,4 +1,17 @@
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
+// vitest.config.ts does not set `test.globals: true`, so no test file has a
+// bare global `afterEach` — every file imports it from "vitest" explicitly
+// where it's needed. @testing-library/react's own auto-cleanup only
+// registers itself when it finds a bare global `afterEach` function, so
+// without this it silently never runs, and DOM trees from earlier tests in
+// the same file stay mounted and leak into later tests' queries. Register
+// cleanup explicitly here instead.
+afterEach(() => {
+  cleanup();
+});
 
 // Node 22+ defines a global `localStorage` accessor (behind the
 // --experimental-webstorage flag) that is undefined without a backing file.
