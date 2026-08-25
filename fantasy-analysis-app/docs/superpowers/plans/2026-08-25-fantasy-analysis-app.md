@@ -3584,10 +3584,10 @@ export interface RecommendationSet {
 
 - [ ] **Step 4: Add the API client skeleton**
 
-`frontend/src/api/client.ts`:
+`frontend/src/api/client.ts` — deliberately just `ApiError`/`BASE_URL` here; Task 20 adds the shared `request<T>` JSON helper (Task 19's `importLeague` posts raw `FormData` directly and never needs one):
 
 ```typescript
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   status: number;
@@ -3599,21 +3599,9 @@ export class ApiError extends Error {
     this.body = body;
   }
 }
-
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers }
-  });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body);
-  }
-
-  return response.json() as Promise<T>;
-}
 ```
+
+(`BASE_URL` is exported, not module-private, so it compiles cleanly under `noUnusedLocals` before anything in this file consumes it — Task 19's `importLeague` and Task 20's `request<T>` both reference it via this export.)
 
 - [ ] **Step 5: Add a minimal App and its smoke test**
 
