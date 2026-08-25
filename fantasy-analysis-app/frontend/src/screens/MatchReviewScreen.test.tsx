@@ -41,4 +41,25 @@ describe("MatchReviewScreen", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("warns that unresolved players will be excluded from analysis", () => {
+    render(<MatchReviewScreen preview={preview} onConfirmed={vi.fn()} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/1 player will be excluded from analysis/i);
+  });
+
+  it("does not warn when every player is resolved", () => {
+    const resolvedPreview: ImportPreview = {
+      teams: [
+        {
+          teamName: "Rhino Wranglers",
+          players: [preview.teams[0].players[0]]
+        }
+      ]
+    };
+
+    render(<MatchReviewScreen preview={resolvedPreview} onConfirmed={vi.fn()} />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

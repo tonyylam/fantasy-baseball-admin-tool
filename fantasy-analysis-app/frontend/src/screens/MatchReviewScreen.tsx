@@ -26,6 +26,8 @@ export function MatchReviewScreen({ preview, onConfirmed }: MatchReviewScreenPro
     return candidates.find((c) => c.playerId === playerId) ?? null;
   }
 
+  const unresolvedCount = selections.flat().filter((s) => s === null).length;
+
   async function handleConfirm() {
     setConfirming(true);
     setError(null);
@@ -79,6 +81,12 @@ export function MatchReviewScreen({ preview, onConfirmed }: MatchReviewScreenPro
           ))}
         </section>
       ))}
+      {unresolvedCount > 0 && (
+        <p role="alert">
+          {unresolvedCount} player{unresolvedCount === 1 ? "" : "s"} will be excluded from analysis (left
+          unresolved).
+        </p>
+      )}
       <button onClick={handleConfirm} disabled={confirming}>
         {confirming ? "Confirming..." : "Confirm Import"}
       </button>
