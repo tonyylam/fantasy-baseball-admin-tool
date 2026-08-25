@@ -21,6 +21,13 @@ builder.Services.AddSingleton<ILeagueDataStore>(sp =>
     return new FileLeagueDataStore(dataRoot);
 });
 
+builder.Services.AddSingleton<IScoringSettingsStore>(sp =>
+{
+    var dataRoot = Path.GetFullPath(sp.GetRequiredService<IConfiguration>()["DataRoot"] ?? "data");
+    Directory.CreateDirectory(dataRoot);
+    return new FileScoringSettingsStore(dataRoot);
+});
+
 builder.Services.AddHttpClient<IStatsProvider, MlbStatsProvider>(client =>
 {
     client.BaseAddress = new Uri("https://statsapi.mlb.com/");
@@ -42,6 +49,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapLeagueEndpoints();
+app.MapScoringSettingsEndpoints();
 
 app.MapFallbackToFile("index.html");
 
