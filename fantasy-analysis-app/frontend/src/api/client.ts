@@ -1,4 +1,4 @@
-import type { ConfirmImportRequest, ImportPreview, League } from "../types";
+import type { ConfirmImportRequest, ImportPreview, League, ScoringSettings } from "../types";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -48,5 +48,21 @@ export function confirmImport(confirmRequest: ConfirmImportRequest): Promise<Lea
   return request<League>("/api/league/import/confirm", {
     method: "POST",
     body: JSON.stringify(confirmRequest)
+  });
+}
+
+export async function getScoringSettings(): Promise<ScoringSettings | null> {
+  try {
+    return await request<ScoringSettings>("/api/settings/scoring");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export function saveScoringSettings(settings: ScoringSettings): Promise<ScoringSettings> {
+  return request<ScoringSettings>("/api/settings/scoring", {
+    method: "PUT",
+    body: JSON.stringify(settings)
   });
 }
