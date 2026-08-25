@@ -16,12 +16,15 @@ export function DashboardScreen({ league, yourTeamName }: DashboardScreenProps) 
   const yourTeam = league.teams.find((t) => t.teamName === yourTeamName);
 
   useEffect(() => {
-    getRecommendations().then(setRecommendations);
+    getRecommendations()
+      .then(setRecommendations)
+      .catch(() => setError("Failed to load existing recommendations."));
   }, []);
 
   async function handleAnalyze() {
     setAnalyzing(true);
     setError(null);
+    setSelected(null);
     try {
       const result = await refreshRecommendations(yourTeamName);
       setRecommendations(result);
