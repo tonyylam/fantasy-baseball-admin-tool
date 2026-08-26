@@ -1,4 +1,4 @@
-import type { ConfirmImportRequest, ImportPreview, League, RecommendationSet, ScoringSettings } from "../types";
+import type { ConfirmImportRequest, ImportPreview, League, RecommendationSet, ScoringCategoryOption, ScoringSettings } from "../types";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -89,4 +89,8 @@ export async function getLeague(): Promise<League | null> {
     if (err instanceof ApiError && err.status === 404) return null;
     throw err;
   }
+}
+
+export function getAvailableScoringCategories(): Promise<ScoringCategoryOption[]> {
+  return request<ScoringCategoryOption[]>("/api/settings/scoring/categories");
 }

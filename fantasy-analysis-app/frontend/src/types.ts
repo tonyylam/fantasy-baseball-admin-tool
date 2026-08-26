@@ -56,15 +56,16 @@ export interface ConfirmImportRequest {
   teams: ConfirmedTeam[];
 }
 
-export interface ScoringCategory {
-  statKey: string;
-  pointsPerUnit: number;
+export interface ScoringSettings {
+  hittingCategoryKeys: string[];
+  pitchingCategoryKeys: string[];
+  rosterSlots: Record<string, number>;
 }
 
-export interface ScoringSettings {
-  hittingCategories: ScoringCategory[];
-  pitchingCategories: ScoringCategory[];
-  rosterSlots: Record<string, number>;
+export interface ScoringCategoryOption {
+  statKey: string;
+  displayName: string;
+  group: "hitting" | "pitching";
 }
 
 export type RecommendationType = "Waiver" | "Trade";

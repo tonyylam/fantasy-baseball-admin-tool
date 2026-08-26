@@ -23,7 +23,7 @@ describe("App", () => {
       importedAtUtc: "2026-01-01T00:00:00Z",
       teams: [{ teamName: "Rhino Wranglers", players: [] }]
     };
-    const settings: ScoringSettings = { hittingCategories: [], pitchingCategories: [], rosterSlots: {} };
+    const settings: ScoringSettings = { hittingCategoryKeys: [], pitchingCategoryKeys: [], rosterSlots: {} };
     localStorage.setItem("yourTeamName", "Rhino Wranglers");
     const fetchMock = vi.fn((url: string) => {
       if (url.includes("/api/league") && !url.includes("import")) {
@@ -88,7 +88,7 @@ describe("App", () => {
       importedAtUtc: "2026-01-01T00:00:00Z",
       teams: [{ teamName: "Rhino Wranglers", players: [] }]
     };
-    const settings: ScoringSettings = { hittingCategories: [], pitchingCategories: [], rosterSlots: {} };
+    const settings: ScoringSettings = { hittingCategoryKeys: [], pitchingCategoryKeys: [], rosterSlots: {} };
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       if (url.includes("/api/league") && !url.includes("import")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(league) });
