@@ -18,7 +18,7 @@ public class AnthropicRecommendationClient : IRecommendationClient
     {
         var parameters = new MessageCreateParams
         {
-            Model = "claude-opus-5",
+            Model = "claude-sonnet-5",
             MaxTokens = 16000,
             System = new List<TextBlockParam> { new() { Text = systemPrompt } },
             Messages = [new() { Role = Role.User, Content = userPrompt }],
