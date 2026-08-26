@@ -35,4 +35,18 @@ public class RosterCsvParserTests
 
         Assert.Throws<CsvParseException>(() => new RosterCsvParser().Parse(csv));
     }
+
+    [Fact]
+    public void Parse_FantasyTeamHeaderWithExtraPositionColumn_IgnoresPositionAndParsesCorrectly()
+    {
+        var csv = "Fantasy Team,Player,Position\nB Squared,K Ruiz,C\nB Squared,B Harper,1B\nBA Bombers,B Rice,C\n";
+
+        var result = new RosterCsvParser().Parse(csv);
+
+        Assert.Equal(2, result.Teams.Count);
+        Assert.Equal("B Squared", result.Teams[0].TeamName);
+        Assert.Equal(new[] { "K Ruiz", "B Harper" }, result.Teams[0].PlayerNames);
+        Assert.Equal("BA Bombers", result.Teams[1].TeamName);
+        Assert.Equal(new[] { "B Rice" }, result.Teams[1].PlayerNames);
+    }
 }
