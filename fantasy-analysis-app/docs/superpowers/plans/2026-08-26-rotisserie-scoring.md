@@ -207,7 +207,7 @@ public static class RotoCategoryReference
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test backend/FantasyAnalysis.Api.Tests/FantasyAnalysis.Api.Tests.csproj --filter RotoCategoryReferenceTests`
-Expected: PASS (16 tests — 11 from the `[Theory]` + 5 standalone facts)
+Expected: PASS (15 tests — 11 from the `[Theory]` + 4 standalone facts)
 
 - [ ] **Step 5: Commit**
 
