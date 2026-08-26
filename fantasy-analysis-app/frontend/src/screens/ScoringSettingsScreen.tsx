@@ -1,69 +1,54 @@
 import { useEffect, useState } from "react";
-import { getScoringSettings, saveScoringSettings } from "../api/client";
-import type { ScoringCategory, ScoringSettings } from "../types";
+import { getAvailableScoringCategories, getScoringSettings, saveScoringSettings } from "../api/client";
+import type { ScoringCategoryOption, ScoringSettings } from "../types";
 
 interface ScoringSettingsScreenProps {
   onSaved: (settings: ScoringSettings) => void;
 }
 
 export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
-  const [hitting, setHitting] = useState<ScoringCategory[]>([]);
-  const [pitching, setPitching] = useState<ScoringCategory[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<ScoringCategoryOption[]>([]);
+  const [hittingKeys, setHittingKeys] = useState<string[]>([]);
+  const [pitchingKeys, setPitchingKeys] = useState<string[]>([]);
   const [rosterSlots, setRosterSlots] = useState<[string, number][]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getScoringSettings().then((settings) => {
+    Promise.all([getAvailableScoringCategories(), getScoringSettings()]).then(([categories, settings]) => {
+      setAvailableCategories(categories);
       if (!settings) return;
-      setHitting(settings.hittingCategories);
-      setPitching(settings.pitchingCategories);
+      setHittingKeys(settings.hittingCategoryKeys);
+      setPitchingKeys(settings.pitchingCategoryKeys);
       setRosterSlots(Object.entries(settings.rosterSlots));
     });
   }, []);
 
-  function updateCategory(
-    list: ScoringCategory[],
-    setList: (v: ScoringCategory[]) => void,
-    index: number,
-    field: keyof ScoringCategory,
-    value: string
-  ) {
-    const next = [...list];
-    next[index] = { ...next[index], [field]: field === "pointsPerUnit" ? Number(value) : value };
-    setList(next);
+  function toggleCategory(keys: string[], setKeys: (v: string[]) => void, statKey: string, checked: boolean) {
+    setKeys(checked ? [...keys, statKey] : keys.filter((k) => k !== statKey));
   }
 
-  function categoryRows(
+  function categoryCheckboxes(
     label: string,
-    list: ScoringCategory[],
-    setList: (v: ScoringCategory[]) => void
+    group: "hitting" | "pitching",
+    keys: string[],
+    setKeys: (v: string[]) => void
   ) {
     return (
       <fieldset>
         <legend>{label}</legend>
-        {list.map((category, index) => (
-          <div key={index}>
-            <label htmlFor={`${label}-key-${index}`}>{label} stat key {index}</label>
-            <input
-              id={`${label}-key-${index}`}
-              value={category.statKey}
-              onChange={(e) => updateCategory(list, setList, index, "statKey", e.target.value)}
-            />
-            <label htmlFor={`${label}-points-${index}`}>{label} points {index}</label>
-            <input
-              id={`${label}-points-${index}`}
-              type="number"
-              value={category.pointsPerUnit}
-              onChange={(e) => updateCategory(list, setList, index, "pointsPerUnit", e.target.value)}
-            />
-            <button type="button" onClick={() => setList(list.filter((_, i) => i !== index))}>
-              Remove
-            </button>
-          </div>
-        ))}
-        <button type="button" onClick={() => setList([...list, { statKey: "", pointsPerUnit: 0 }])}>
-          Add {label} Category
-        </button>
+        {availableCategories
+          .filter((c) => c.group === group)
+          .map((category) => (
+            <div key={category.statKey}>
+              <label htmlFor={`category-${category.statKey}`}>{category.displayName}</label>
+              <input
+                id={`category-${category.statKey}`}
+                type="checkbox"
+                checked={keys.includes(category.statKey)}
+                onChange={(e) => toggleCategory(keys, setKeys, category.statKey, e.target.checked)}
+              />
+            </div>
+          ))}
       </fieldset>
     );
   }
@@ -111,8 +96,8 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
     setSaving(true);
     try {
       const settings: ScoringSettings = {
-        hittingCategories: hitting,
-        pitchingCategories: pitching,
+        hittingCategoryKeys: hittingKeys,
+        pitchingCategoryKeys: pitchingKeys,
         rosterSlots: Object.fromEntries(rosterSlots)
       };
       const result = await saveScoringSettings(settings);
@@ -125,8 +110,8 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
   return (
     <div>
       <h1>Scoring Settings</h1>
-      {categoryRows("Hitting", hitting, setHitting)}
-      {categoryRows("Pitching", pitching, setPitching)}
+      {categoryCheckboxes("Hitting", "hitting", hittingKeys, setHittingKeys)}
+      {categoryCheckboxes("Pitching", "pitching", pitchingKeys, setPitchingKeys)}
       {rosterSlotRows()}
       <button onClick={handleSave} disabled={saving}>
         Save
