@@ -62,4 +62,37 @@ describe("MatchReviewScreen", () => {
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("marks rows high/low/unresolved confidence based on the selected candidate's score", () => {
+    const mixedConfidencePreview: ImportPreview = {
+      teams: [
+        {
+          teamName: "Rhino Wranglers",
+          players: [
+            {
+              csvName: "Shohei Ohtani",
+              bestGuess: { playerId: "660271", fullName: "Shohei Ohtani", position: "DH", isPitcher: false, score: 0.95 },
+              candidates: [{ playerId: "660271", fullName: "Shohei Ohtani", position: "DH", isPitcher: false, score: 0.95 }]
+            },
+            {
+              csvName: "Shohei Otani",
+              bestGuess: { playerId: "660271", fullName: "Shohei Ohtani", position: "DH", isPitcher: false, score: 0.75 },
+              candidates: [{ playerId: "660271", fullName: "Shohei Ohtani", position: "DH", isPitcher: false, score: 0.75 }]
+            },
+            {
+              csvName: "Unknown Guy",
+              bestGuess: null,
+              candidates: []
+            }
+          ]
+        }
+      ]
+    };
+
+    render(<MatchReviewScreen preview={mixedConfidencePreview} onConfirmed={vi.fn()} />);
+
+    expect(screen.getByText("Shohei Ohtani").closest("tr")).toHaveAttribute("data-confidence", "high");
+    expect(screen.getByText("Shohei Otani").closest("tr")).toHaveAttribute("data-confidence", "low");
+    expect(screen.getByText("Unknown Guy").closest("tr")).toHaveAttribute("data-confidence", "unresolved");
+  });
 });
