@@ -14,12 +14,15 @@ public class PlayerMatchingServiceTests
         new MlbPlayer("665742", "Juan Soto", "OF", false, 121)
     };
 
+    private static ParsedPlayer Csv(string name, string? position = null, string? proTeam = null) =>
+        new(name, position, proTeam);
+
     [Fact]
     public void MatchPlayers_ExactNameMatch_ReturnsFullConfidenceBestGuess()
     {
         var service = new PlayerMatchingService();
 
-        var matches = service.MatchPlayers(new[] { "Shohei Ohtani" }, Pool);
+        var matches = service.MatchPlayers(new[] { Csv("Shohei Ohtani") }, Pool);
 
         var match = Assert.Single(matches);
         Assert.NotNull(match.BestGuess);
@@ -32,7 +35,7 @@ public class PlayerMatchingServiceTests
     {
         var service = new PlayerMatchingService();
 
-        var matches = service.MatchPlayers(new[] { "Ronald Acuna Jr" }, Pool);
+        var matches = service.MatchPlayers(new[] { Csv("Ronald Acuna Jr") }, Pool);
 
         var match = Assert.Single(matches);
         Assert.NotNull(match.BestGuess);
@@ -44,7 +47,7 @@ public class PlayerMatchingServiceTests
     {
         var service = new PlayerMatchingService();
 
-        var matches = service.MatchPlayers(new[] { "Zzyzx Nobody" }, Pool);
+        var matches = service.MatchPlayers(new[] { Csv("Zzyzx Nobody") }, Pool);
 
         var match = Assert.Single(matches);
         Assert.Null(match.BestGuess);
@@ -58,7 +61,7 @@ public class PlayerMatchingServiceTests
         // "Shohei Otani" has a typo (missing 'h'), should still match "Shohei Ohtani"
         // After normalization: "shohei otani" vs "shohei ohtani" (1 character difference)
         // Score = 1 - (1 / max_length) ≈ 0.917, which is > 0.7 threshold
-        var matches = service.MatchPlayers(new[] { "Shohei Otani" }, Pool);
+        var matches = service.MatchPlayers(new[] { Csv("Shohei Otani") }, Pool);
 
         var match = Assert.Single(matches);
         Assert.NotNull(match.BestGuess);
@@ -86,7 +89,7 @@ public class PlayerMatchingServiceTests
             new MlbPlayer("8", "Shohei Ohtani", "DH", false, 8)
         };
 
-        var matches = service.MatchPlayers(new[] { "John Smith" }, largePool);
+        var matches = service.MatchPlayers(new[] { Csv("John Smith") }, largePool);
 
         var match = Assert.Single(matches);
         // Should have exactly 5 candidates (the cap), not all 7 similar matches
@@ -94,5 +97,39 @@ public class PlayerMatchingServiceTests
         // Best match should still be the exact player (ID "1")
         Assert.NotNull(match.BestGuess);
         Assert.Equal("1", match.BestGuess!.PlayerId);
+    }
+
+    [Fact]
+    public void MatchPlayers_TwoPlayersShareAName_ProTeamHintDisambiguatesCorrectly()
+    {
+        var service = new PlayerMatchingService();
+        var duplicateNamePool = new List<MlbPlayer>
+        {
+            new MlbPlayer("100", "Luis Garcia", "2B", false, MlbTeamAbbreviations.TeamIdsByAbbreviation["WSH"]),
+            new MlbPlayer("200", "Luis Garcia", "SP", true, MlbTeamAbbreviations.TeamIdsByAbbreviation["HOU"])
+        };
+
+        // Without a team hint, both are exact name matches - order is otherwise ambiguous.
+        var withoutHint = service.MatchPlayers(new[] { Csv("Luis Garcia") }, duplicateNamePool);
+        Assert.Equal("100", Assert.Single(withoutHint).BestGuess!.PlayerId);
+
+        // With a team hint matching the second player, the hint should win the tie.
+        var withHint = service.MatchPlayers(new[] { Csv("Luis Garcia", proTeam: "HOU") }, duplicateNamePool);
+        var hintedMatch = Assert.Single(withHint);
+        Assert.Equal("200", hintedMatch.BestGuess!.PlayerId);
+        // Displayed score still caps at 1.0 even though the internal ranking score exceeded it.
+        Assert.Equal(1.0, hintedMatch.BestGuess.Score, 3);
+    }
+
+    [Fact]
+    public void MatchPlayers_UnrecognizedProTeamAbbreviation_IgnoresBoostRatherThanThrowing()
+    {
+        var service = new PlayerMatchingService();
+
+        var matches = service.MatchPlayers(new[] { Csv("Shohei Ohtani", proTeam: "NOT_A_REAL_TEAM") }, Pool);
+
+        var match = Assert.Single(matches);
+        Assert.NotNull(match.BestGuess);
+        Assert.Equal("660271", match.BestGuess!.PlayerId);
     }
 }

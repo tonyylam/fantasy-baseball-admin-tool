@@ -27,7 +27,7 @@ public class LeagueImportService
         var pool = await _statsProvider.GetAllActivePlayersAsync(SeasonClock.Current);
 
         var teamPreviews = parsed.Teams
-            .Select(t => new TeamMatchPreview(t.TeamName, _matcher.MatchPlayers(t.PlayerNames, pool)))
+            .Select(t => new TeamMatchPreview(t.TeamName, _matcher.MatchPlayers(t.Players, pool)))
             .ToList();
 
         return new ImportPreview(teamPreviews);

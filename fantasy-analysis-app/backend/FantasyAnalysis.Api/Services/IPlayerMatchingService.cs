@@ -4,5 +4,5 @@ namespace FantasyAnalysis.Api.Services;
 
 public interface IPlayerMatchingService
 {
-    IReadOnlyList<PlayerMatch> MatchPlayers(IReadOnlyList<string> csvNames, IReadOnlyList<MlbPlayer> candidatePool);
+    IReadOnlyList<PlayerMatch> MatchPlayers(IReadOnlyList<ParsedPlayer> players, IReadOnlyList<MlbPlayer> candidatePool);
 }

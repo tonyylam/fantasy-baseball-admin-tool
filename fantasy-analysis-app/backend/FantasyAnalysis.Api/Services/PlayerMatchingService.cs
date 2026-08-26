@@ -9,26 +9,49 @@ public class PlayerMatchingService : IPlayerMatchingService
     private const double MatchThreshold = 0.7;
     private const int MaxCandidates = 5;
 
-    public IReadOnlyList<PlayerMatch> MatchPlayers(IReadOnlyList<string> csvNames, IReadOnlyList<MlbPlayer> candidatePool)
+    // Applied (uncapped, for ranking only) when the CSV row's pro-team hint matches a
+    // candidate's actual MLB team - lets it win over a same-scoring candidate on the wrong
+    // team without ever letting a team match alone push an unrelated name over the
+    // MatchThreshold (the boost is added to an already-computed name-similarity score, not
+    // used standalone).
+    private const double TeamMatchBoost = 0.15;
+
+    public IReadOnlyList<PlayerMatch> MatchPlayers(IReadOnlyList<ParsedPlayer> players, IReadOnlyList<MlbPlayer> candidatePool)
     {
         var normalizedPool = candidatePool
             .Select(p => (Player: p, Normalized: Normalize(p.FullName)))
             .ToList();
 
         var matches = new List<PlayerMatch>();
-        foreach (var csvName in csvNames)
+        foreach (var player in players)
         {
-            var normalizedCsvName = Normalize(csvName);
+            var normalizedCsvName = Normalize(player.PlayerName);
+            var proTeamId = player.ProTeamAbbreviation is not null
+                && MlbTeamAbbreviations.TeamIdsByAbbreviation.TryGetValue(player.ProTeamAbbreviation, out var id)
+                    ? id
+                    : (int?)null;
 
             var scored = normalizedPool
-                .Select(p => new PlayerMatchCandidate(p.Player.Id, p.Player.FullName, p.Player.Position, p.Player.IsPitcher, Similarity(normalizedCsvName, p.Normalized)))
-                .OrderByDescending(c => c.Score)
+                .Select(p =>
+                {
+                    var baseScore = Similarity(normalizedCsvName, p.Normalized);
+                    // Ranking score can exceed 1.0 so two candidates that both score a
+                    // perfect name match (e.g. two real players who share a name) can still
+                    // be told apart by team; the displayed Score stays capped at 1.0.
+                    var rankingScore = proTeamId is not null && p.Player.MlbTeamId == proTeamId
+                        ? baseScore + TeamMatchBoost
+                        : baseScore;
+                    var candidate = new PlayerMatchCandidate(p.Player.Id, p.Player.FullName, p.Player.Position, p.Player.IsPitcher, Math.Min(1.0, rankingScore));
+                    return (Candidate: candidate, RankingScore: rankingScore);
+                })
+                .OrderByDescending(x => x.RankingScore)
                 .Take(MaxCandidates)
+                .Select(x => x.Candidate)
                 .ToList();
 
             var bestGuess = scored.FirstOrDefault();
             matches.Add(new PlayerMatch(
-                csvName,
+                player.PlayerName,
                 bestGuess is not null && bestGuess.Score >= MatchThreshold ? bestGuess : null,
                 scored));
         }
