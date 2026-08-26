@@ -29,8 +29,8 @@ public class ScoringSettingsEndpointsTests : IClassFixture<WebApplicationFactory
     {
         var client = _factory.CreateClient();
         var settings = new ScoringSettings(
-            new List<ScoringCategory> { new("homeRuns", 4m) },
-            new List<ScoringCategory> { new("strikeOuts", 1m) },
+            new List<string> { "homeRuns" },
+            new List<string> { "strikeoutsPer9Inn" },
             new Dictionary<string, int> { ["C"] = 1 });
 
         var putResponse = await client.PutAsJsonAsync("/api/settings/scoring", settings);
@@ -39,6 +39,22 @@ public class ScoringSettingsEndpointsTests : IClassFixture<WebApplicationFactory
         var getResponse = await client.GetAsync("/api/settings/scoring");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var loaded = await getResponse.Content.ReadFromJsonAsync<ScoringSettings>();
-        Assert.Equal(4m, loaded!.HittingCategories[0].PointsPerUnit);
+        Assert.Equal(new[] { "homeRuns" }, loaded!.HittingCategoryKeys);
     }
+
+    [Fact]
+    public async Task GetAvailableCategories_ReturnsAllElevenKnownCategoriesWithGroups()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/settings/scoring/categories");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var categories = await response.Content.ReadFromJsonAsync<List<ScoringCategoryOptionDto>>();
+        Assert.Equal(11, categories!.Count);
+        Assert.Contains(categories, c => c.StatKey == "era" && c.Group == "pitching");
+        Assert.Contains(categories, c => c.StatKey == "obp" && c.Group == "hitting");
+    }
+
+    private record ScoringCategoryOptionDto(string StatKey, string DisplayName, string Group);
 }

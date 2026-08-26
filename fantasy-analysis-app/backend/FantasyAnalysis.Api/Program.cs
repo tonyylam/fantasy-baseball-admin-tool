@@ -59,7 +59,8 @@ builder.Services.AddSingleton<IRecommendationDataStore>(sp =>
 });
 
 builder.Services.AddSingleton<WaiverPoolCalculator>();
-builder.Services.AddSingleton<FantasyValueRanker>();
+builder.Services.AddSingleton<RotoStandingsCalculator>();
+builder.Services.AddSingleton<WeakCategoryWaiverShortlist>();
 
 builder.Services.AddSingleton(sp =>
 {

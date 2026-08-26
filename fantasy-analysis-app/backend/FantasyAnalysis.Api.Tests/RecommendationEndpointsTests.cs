@@ -25,7 +25,7 @@ public class RecommendationEndpointsTests : IClassFixture<WebApplicationFactory<
             new List<TeamRoster> { new("Rhino Wranglers", new List<RosteredPlayer>()) });
         var leagueStore = new FakeLeagueDataStore();
         leagueStore.SaveLeague(league);
-        var settings = new ScoringSettings(new List<ScoringCategory>(), new List<ScoringCategory>(), new Dictionary<string, int>());
+        var settings = new ScoringSettings(new List<string>(), new List<string>(), new Dictionary<string, int>());
         var responseJson = """
             {
                 "waiverSuggestions": [

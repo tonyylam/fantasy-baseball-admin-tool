@@ -1,3 +1,4 @@
+using System.Linq;
 using FantasyAnalysis.Api.Models;
 using FantasyAnalysis.Api.Services;
 
@@ -19,6 +20,14 @@ public static class ScoringSettingsEndpoints
         {
             store.Save(settings);
             return Results.Ok(settings);
+        });
+
+        app.MapGet("/api/settings/scoring/categories", () =>
+        {
+            var categories = RotoCategoryReference.Categories.Values
+                .Select(c => new { statKey = c.StatKey, displayName = c.DisplayName, group = c.Group })
+                .ToList();
+            return Results.Ok(categories);
         });
     }
 }

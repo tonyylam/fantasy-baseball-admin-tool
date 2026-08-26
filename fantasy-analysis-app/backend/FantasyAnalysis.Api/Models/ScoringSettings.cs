@@ -1,8 +1,6 @@
 namespace FantasyAnalysis.Api.Models;
 
-public record ScoringCategory(string StatKey, decimal PointsPerUnit);
-
 public record ScoringSettings(
-    IReadOnlyList<ScoringCategory> HittingCategories,
-    IReadOnlyList<ScoringCategory> PitchingCategories,
+    IReadOnlyList<string> HittingCategoryKeys,
+    IReadOnlyList<string> PitchingCategoryKeys,
     IReadOnlyDictionary<string, int> RosterSlots);

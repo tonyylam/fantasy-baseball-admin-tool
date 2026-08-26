@@ -5,14 +5,14 @@ namespace FantasyAnalysis.Api.Services;
 public class RecommendationOrchestrationService
 {
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
-    private const int ShortlistPerPosition = 5;
 
     private readonly ILeagueDataStore _leagueStore;
     private readonly IScoringSettingsStore _settingsStore;
     private readonly IStatsProvider _statsProvider;
     private readonly IStatsCache _statsCache;
     private readonly WaiverPoolCalculator _waiverPoolCalculator;
-    private readonly FantasyValueRanker _ranker;
+    private readonly RotoStandingsCalculator _standingsCalculator;
+    private readonly WeakCategoryWaiverShortlist _shortlistBuilder;
     private readonly ClaudeRecommendationEngine _engine;
     private readonly IRecommendationDataStore _recommendationStore;
 
@@ -22,7 +22,8 @@ public class RecommendationOrchestrationService
         IStatsProvider statsProvider,
         IStatsCache statsCache,
         WaiverPoolCalculator waiverPoolCalculator,
-        FantasyValueRanker ranker,
+        RotoStandingsCalculator standingsCalculator,
+        WeakCategoryWaiverShortlist shortlistBuilder,
         ClaudeRecommendationEngine engine,
         IRecommendationDataStore recommendationStore)
     {
@@ -31,7 +32,8 @@ public class RecommendationOrchestrationService
         _statsProvider = statsProvider;
         _statsCache = statsCache;
         _waiverPoolCalculator = waiverPoolCalculator;
-        _ranker = ranker;
+        _standingsCalculator = standingsCalculator;
+        _shortlistBuilder = shortlistBuilder;
         _engine = engine;
         _recommendationStore = recommendationStore;
     }
@@ -60,9 +62,10 @@ public class RecommendationOrchestrationService
             .GroupBy(s => s.PlayerId)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<StatLine>)g.ToList());
 
-        var shortlist = _ranker.TopCandidatesByPosition(waiverPool, statsByPlayerId, settings, ShortlistPerPosition);
+        var standings = _standingsCalculator.ComputeStandings(league, settings.HittingCategoryKeys, settings.PitchingCategoryKeys, statsByPlayerId);
+        var shortlist = _shortlistBuilder.ShortlistForWeakCategories(standings, yourTeamName, waiverPool, statsByPlayerId);
 
-        var recommendations = await _engine.GenerateRecommendationsAsync(league, yourTeamName, settings, statsByPlayerId, shortlist);
+        var recommendations = await _engine.GenerateRecommendationsAsync(league, yourTeamName, standings, shortlist, statsByPlayerId);
         _recommendationStore.Save(recommendations);
         return recommendations;
     }

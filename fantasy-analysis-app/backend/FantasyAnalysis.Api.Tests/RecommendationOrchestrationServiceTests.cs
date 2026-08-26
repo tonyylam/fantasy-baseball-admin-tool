@@ -20,8 +20,8 @@ public class RecommendationOrchestrationServiceTests
         });
 
     private static readonly ScoringSettings Settings = new(
-        new List<ScoringCategory> { new("homeRuns", 4m) },
-        new List<ScoringCategory>(),
+        new List<string> { "homeRuns" },
+        new List<string>(),
         new Dictionary<string, int>());
 
     private static RecommendationOrchestrationService BuildService(
@@ -47,7 +47,7 @@ public class RecommendationOrchestrationServiceTests
         if (league is not null) leagueStore.SaveLeague(league);
 
         var responseJson = """{ "waiverSuggestions": [], "tradeSuggestions": [] }""";
-        var engine = new ClaudeRecommendationEngine(new FakeRecommendationClient(responseJson), new FantasyValueRanker());
+        var engine = new ClaudeRecommendationEngine(new FakeRecommendationClient(responseJson));
         recommendationStore = new FakeRecommendationDataStore();
         statsCache = new FakeStatsCache();
 
@@ -57,7 +57,8 @@ public class RecommendationOrchestrationServiceTests
             statsProvider,
             statsCache,
             new WaiverPoolCalculator(),
-            new FantasyValueRanker(),
+            new RotoStandingsCalculator(),
+            new WeakCategoryWaiverShortlist(),
             engine,
             recommendationStore);
     }

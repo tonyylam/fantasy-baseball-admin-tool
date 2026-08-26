@@ -23,10 +23,11 @@ public class ClaudeRecommendationEngineTests
             })
         });
 
-    private static readonly ScoringSettings Settings = new(
-        new List<ScoringCategory> { new("homeRuns", 4m) },
-        new List<ScoringCategory>(),
-        new Dictionary<string, int>());
+    private static readonly RotoStandings Standings = new(new List<TeamCategoryStanding>
+    {
+        new("Rhino Wranglers", "homeRuns", 10m, 2m, 1m),
+        new("Sea Dogs", "homeRuns", 20m, 1m, 2m)
+    });
 
     [Fact]
     public async Task GenerateRecommendationsAsync_ParsesClientJsonIntoRecommendationSet()
@@ -40,14 +41,14 @@ public class ClaudeRecommendationEngineTests
         }
         """;
         var fakeClient = new FakeRecommendationClient(json);
-        var engine = new ClaudeRecommendationEngine(fakeClient, new FantasyValueRanker());
+        var engine = new ClaudeRecommendationEngine(fakeClient);
 
         var result = await engine.GenerateRecommendationsAsync(
             League,
             "Rhino Wranglers",
-            Settings,
-            new Dictionary<string, IReadOnlyList<StatLine>>(),
-            new Dictionary<string, IReadOnlyList<MlbPlayer>>());
+            Standings,
+            new Dictionary<string, IReadOnlyList<MlbPlayer>>(),
+            new Dictionary<string, IReadOnlyList<StatLine>>());
 
         var suggestion = Assert.Single(result.WaiverSuggestions);
         Assert.Equal("Pick up X", suggestion.Summary);
@@ -57,21 +58,25 @@ public class ClaudeRecommendationEngineTests
     }
 
     [Fact]
-    public async Task GenerateRecommendationsAsync_PromptMentionsYourTeamAndOtherTeams()
+    public async Task GenerateRecommendationsAsync_PromptMentionsTeamsAndWeakCategoryStandings()
     {
         var json = """{ "waiverSuggestions": [], "tradeSuggestions": [] }""";
         var fakeClient = new FakeRecommendationClient(json);
-        var engine = new ClaudeRecommendationEngine(fakeClient, new FantasyValueRanker());
+        var engine = new ClaudeRecommendationEngine(fakeClient);
+        var shortlist = new Dictionary<string, IReadOnlyList<MlbPlayer>>
+        {
+            ["homeRuns"] = new List<MlbPlayer> { new("999", "Waiver Guy", "OF", false, 108) }
+        };
+        var statsByPlayerId = new Dictionary<string, IReadOnlyList<StatLine>>
+        {
+            ["999"] = new List<StatLine> { new("999", 2026, "hitting", new Dictionary<string, decimal> { ["homeRuns"] = 30m }) }
+        };
 
-        await engine.GenerateRecommendationsAsync(
-            League,
-            "Rhino Wranglers",
-            Settings,
-            new Dictionary<string, IReadOnlyList<StatLine>>(),
-            new Dictionary<string, IReadOnlyList<MlbPlayer>>());
+        await engine.GenerateRecommendationsAsync(League, "Rhino Wranglers", Standings, shortlist, statsByPlayerId);
 
         Assert.Contains("Rhino Wranglers", fakeClient.LastUserPrompt);
         Assert.Contains("Sea Dogs", fakeClient.LastUserPrompt);
-        Assert.Contains("Shohei Ohtani", fakeClient.LastUserPrompt);
+        Assert.Contains("Waiver Guy", fakeClient.LastUserPrompt);
+        Assert.Contains("homeRuns", fakeClient.LastUserPrompt);
     }
 }

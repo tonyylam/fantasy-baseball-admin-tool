@@ -31,15 +31,15 @@ public class FileScoringSettingsStoreTests : IDisposable
     {
         var store = new FileScoringSettingsStore(_tempDir);
         var settings = new ScoringSettings(
-            new List<ScoringCategory> { new("homeRuns", 4m), new("stolenBases", 2m) },
-            new List<ScoringCategory> { new("strikeOuts", 1m) },
+            new List<string> { "homeRuns", "stolenBases" },
+            new List<string> { "strikeoutsPer9Inn" },
             new Dictionary<string, int> { ["C"] = 1, ["1B"] = 1, ["SP"] = 5 });
 
         store.Save(settings);
         var loaded = store.Load();
 
         Assert.NotNull(loaded);
-        Assert.Equal(4m, loaded!.HittingCategories[0].PointsPerUnit);
+        Assert.Equal(new[] { "homeRuns", "stolenBases" }, loaded!.HittingCategoryKeys);
         Assert.Equal(5, loaded.RosterSlots["SP"]);
     }
 }
