@@ -855,6 +855,7 @@ This is the one task in this plan where several files move together atomically �
 - Modify: `backend/FantasyAnalysis.Api.Tests/ScoringSettingsEndpointsTests.cs`
 - Modify: `backend/FantasyAnalysis.Api.Tests/ClaudeRecommendationEngineTests.cs`
 - Modify: `backend/FantasyAnalysis.Api.Tests/RecommendationOrchestrationServiceTests.cs`
+- Modify: `backend/FantasyAnalysis.Api.Tests/RecommendationEndpointsTests.cs`
 
 **Interfaces:**
 - Consumes: `RotoStandingsCalculator` (Task 3), `WeakCategoryWaiverShortlist` (Task 4), `RotoStatMath`/`RotoCategoryReference` (Tasks 1-2), everything `FantasyValueRanker`, `ClaudeRecommendationEngine`, and `RecommendationOrchestrationService` already consumed.
@@ -1139,6 +1140,14 @@ public class RecommendationOrchestrationServiceTests
 }
 ```
 
+Also fix `backend/FantasyAnalysis.Api.Tests/RecommendationEndpointsTests.cs` — an existing test that constructs `ScoringSettings` with the old shape (found during the pre-flight scan, not part of the original test-file list scanned when this plan was written). Replace its one `ScoringSettings` construction line:
+
+```csharp
+        var settings = new ScoringSettings(new List<string>(), new List<string>(), new Dictionary<string, int>());
+```
+
+(This is the only line in that file referencing the old shape — the rest of the file, including its two test methods, is unaffected and needs no other changes.)
+
 - [ ] **Step 2: Delete FantasyValueRanker and its test**
 
 ```bash
@@ -1407,7 +1416,7 @@ Expected: PASS, all tests — this is the first point since Task 1 where a full-
 - [ ] **Step 9: Commit**
 
 ```bash
-git add backend/FantasyAnalysis.Api/Models/ScoringSettings.cs backend/FantasyAnalysis.Api/Endpoints/ScoringSettingsEndpoints.cs backend/FantasyAnalysis.Api/Services/ClaudeRecommendationEngine.cs backend/FantasyAnalysis.Api/Services/RecommendationOrchestrationService.cs backend/FantasyAnalysis.Api/Program.cs backend/FantasyAnalysis.Api.Tests/FileScoringSettingsStoreTests.cs backend/FantasyAnalysis.Api.Tests/ScoringSettingsEndpointsTests.cs backend/FantasyAnalysis.Api.Tests/ClaudeRecommendationEngineTests.cs backend/FantasyAnalysis.Api.Tests/RecommendationOrchestrationServiceTests.cs
+git add backend/FantasyAnalysis.Api/Models/ScoringSettings.cs backend/FantasyAnalysis.Api/Endpoints/ScoringSettingsEndpoints.cs backend/FantasyAnalysis.Api/Services/ClaudeRecommendationEngine.cs backend/FantasyAnalysis.Api/Services/RecommendationOrchestrationService.cs backend/FantasyAnalysis.Api/Program.cs backend/FantasyAnalysis.Api.Tests/FileScoringSettingsStoreTests.cs backend/FantasyAnalysis.Api.Tests/ScoringSettingsEndpointsTests.cs backend/FantasyAnalysis.Api.Tests/ClaudeRecommendationEngineTests.cs backend/FantasyAnalysis.Api.Tests/RecommendationOrchestrationServiceTests.cs backend/FantasyAnalysis.Api.Tests/RecommendationEndpointsTests.cs
 git commit -m "Redesign scoring settings, migrate recommendation engine/orchestration to roto standings, remove FantasyValueRanker"
 ```
 
