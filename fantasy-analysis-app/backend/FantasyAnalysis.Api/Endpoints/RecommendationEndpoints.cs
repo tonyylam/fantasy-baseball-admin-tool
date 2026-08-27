@@ -26,6 +26,10 @@ public static class RecommendationEndpoints
             {
                 return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
             }
+            catch (Exception ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
         app.MapGet("/api/recommendations", (RecommendationOrchestrationService orchestrator) =>

@@ -79,4 +79,28 @@ describe("DashboardScreen", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("shows the API's actual error message instead of a generic one when analysis fails", async () => {
+    const initial: RecommendationSet = { generatedAtUtc: "2026-01-01T00:00:00Z", waiverSuggestions: [], tradeSuggestions: [] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(initial) }) // initial GET
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: () => Promise.resolve({ error: "Claude API request failed: upstream timeout" })
+      }); // POST refresh
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DashboardScreen league={league} yourTeamName="Rhino Wranglers" />);
+
+    await waitFor(() => expect(screen.getByText("Shohei Ohtani")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /analyze/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("Claude API request failed: upstream timeout");
+    expect(screen.getByRole("alert")).toHaveTextContent(/502/);
+
+    vi.unstubAllGlobals();
+  });
 });

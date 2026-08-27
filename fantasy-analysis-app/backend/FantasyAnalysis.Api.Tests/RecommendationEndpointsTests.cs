@@ -94,4 +94,42 @@ public class RecommendationEndpointsTests : IClassFixture<WebApplicationFactory<
         var waiverSuggestion = Assert.Single(set!.WaiverSuggestions);
         Assert.Equal(RecommendationType.Waiver, waiverSuggestion.Type);
     }
+
+    [Fact]
+    public async Task Refresh_WhenAnUnexpectedExceptionOccurs_ReturnsServerErrorWithMessageInsteadOfAnOpaqueResponse()
+    {
+        // Simulates a bug or corrupted data reaching a code path with no specific catch clause
+        // (e.g. a category key that slipped past PUT validation) - the endpoint should still
+        // surface a message rather than returning an empty/opaque 500, since that's the only
+        // thing the frontend has to show the user.
+        var league = new League(
+            System.DateTimeOffset.UtcNow,
+            new List<TeamRoster> { new("Rhino Wranglers", new List<RosteredPlayer>()) });
+        var leagueStore = new FakeLeagueDataStore();
+        leagueStore.SaveLeague(league);
+        var settingsWithUnrecognizedCategory = new ScoringSettings(
+            new List<string> { "notARealCategory" },
+            new List<string>(),
+            new Dictionary<string, int>());
+
+        var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<ILeagueDataStore>(leagueStore);
+                services.AddSingleton<IScoringSettingsStore>(new FakeScoringSettingsStore(settingsWithUnrecognizedCategory));
+                services.AddSingleton<IStatsProvider>(new FakeStatsProvider(new List<MlbPlayer>()));
+                services.AddSingleton<IStatsCache>(new FakeStatsCache());
+                services.AddSingleton<IRecommendationDataStore>(new FakeRecommendationDataStore());
+            });
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/api/recommendations/refresh?teamName=Rhino+Wranglers", null);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.TryGetProperty("error", out var errorProp));
+        Assert.False(string.IsNullOrWhiteSpace(errorProp.GetString()));
+    }
 }

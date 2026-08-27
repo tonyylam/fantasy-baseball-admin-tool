@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
-import { getRecommendations, refreshRecommendations } from "../api/client";
+import { ApiError, getRecommendations, refreshRecommendations } from "../api/client";
 import type { League, Recommendation, RecommendationSet } from "../types";
+
+function describeAnalysisError(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body;
+    const detail =
+      body && typeof body === "object" && "error" in body && typeof (body as { error: unknown }).error === "string"
+        ? (body as { error: string }).error
+        : JSON.stringify(body);
+    return `Analysis failed (${err.status}): ${detail}`;
+  }
+  if (err instanceof Error) {
+    return `Analysis failed: ${err.message}`;
+  }
+  return "Analysis failed. Please try again.";
+}
 
 interface DashboardScreenProps {
   league: League;
@@ -28,8 +43,8 @@ export function DashboardScreen({ league, yourTeamName }: DashboardScreenProps) 
     try {
       const result = await refreshRecommendations(yourTeamName);
       setRecommendations(result);
-    } catch {
-      setError("Analysis failed. Please try again.");
+    } catch (err) {
+      setError(describeAnalysisError(err));
     } finally {
       setAnalyzing(false);
     }
