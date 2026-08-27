@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
+using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Anthropic;
 using Anthropic.Exceptions;
@@ -38,5 +41,43 @@ public class AnthropicRecommendationClientTests
 
         var ioException = Assert.IsType<AnthropicIOException>(ex.InnerException);
         Assert.IsType<HttpRequestException>(ioException.InnerException);
+    }
+
+    [Fact]
+    public void BuildSchema_SetsAdditionalPropertiesFalseOnEveryObjectNode()
+    {
+        // The live Anthropic API rejects output_config.format.schema unless every object-type
+        // node - not just the top level - explicitly sets additionalProperties: false. This app
+        // hit that exact 400 in production because the nested per-recommendation object (inside
+        // waiverSuggestions/tradeSuggestions' array items) was missing it.
+        var method = typeof(AnthropicRecommendationClient).GetMethod("BuildSchema", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var schema = (Dictionary<string, JsonElement>)method.Invoke(null, null)!;
+        var root = JsonSerializer.SerializeToElement(schema);
+
+        AssertAdditionalPropertiesFalseOnEveryObject(root);
+    }
+
+    private static void AssertAdditionalPropertiesFalseOnEveryObject(JsonElement node)
+    {
+        if (node.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "object")
+        {
+            Assert.True(
+                node.TryGetProperty("additionalProperties", out var additionalProperties)
+                    && additionalProperties.ValueKind == JsonValueKind.False,
+                $"Object node missing additionalProperties: false: {node.GetRawText()}");
+        }
+
+        if (node.TryGetProperty("properties", out var propertiesEl))
+        {
+            foreach (var property in propertiesEl.EnumerateObject())
+            {
+                AssertAdditionalPropertiesFalseOnEveryObject(property.Value);
+            }
+        }
+
+        if (node.TryGetProperty("items", out var itemsEl))
+        {
+            AssertAdditionalPropertiesFalseOnEveryObject(itemsEl);
+        }
     }
 }

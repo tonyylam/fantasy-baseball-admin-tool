@@ -59,7 +59,8 @@ public class AnthropicRecommendationClient : IRecommendationClient
                 involvedPlayerIds = new { type = "array", items = new { type = "string" } },
                 citations = new { type = "array", items = new { type = "string" } }
             },
-            required = new[] { "summary", "reasoning", "involvedPlayerIds", "citations" }
+            required = new[] { "summary", "reasoning", "involvedPlayerIds", "citations" },
+            additionalProperties = false
         };
 
         return new Dictionary<string, JsonElement>
@@ -70,7 +71,8 @@ public class AnthropicRecommendationClient : IRecommendationClient
                 waiverSuggestions = new { type = "array", items = recommendationSchema },
                 tradeSuggestions = new { type = "array", items = recommendationSchema }
             }),
-            ["required"] = JsonSerializer.SerializeToElement(new[] { "waiverSuggestions", "tradeSuggestions" })
+            ["required"] = JsonSerializer.SerializeToElement(new[] { "waiverSuggestions", "tradeSuggestions" }),
+            ["additionalProperties"] = JsonSerializer.SerializeToElement(false)
         };
     }
 }
