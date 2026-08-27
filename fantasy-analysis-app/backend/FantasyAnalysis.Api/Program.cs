@@ -66,7 +66,13 @@ builder.Services.AddSingleton(sp =>
 {
     var apiKey = sp.GetRequiredService<IConfiguration>()["AnthropicApiKey"]
         ?? throw new InvalidOperationException("AnthropicApiKey must be configured.");
-    return new Anthropic.AnthropicClient { ApiKey = apiKey };
+    // The SDK's own Timeout property does not extend the underlying HttpClient's
+    // request timeout (verified empirically: requests were still cut off at .NET's
+    // built-in 100s default with Timeout set) - supplying an HttpClient with its own
+    // longer Timeout is what actually governs how long a single Messages.Create call
+    // (including web search tool round-trips) is allowed to run.
+    var anthropicHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+    return new Anthropic.AnthropicClient { ApiKey = apiKey, HttpClient = anthropicHttpClient };
 });
 builder.Services.AddSingleton<IRecommendationClient, AnthropicRecommendationClient>();
 builder.Services.AddSingleton<ClaudeRecommendationEngine>();
