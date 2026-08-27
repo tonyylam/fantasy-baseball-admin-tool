@@ -43,6 +43,46 @@ public class ScoringSettingsEndpointsTests : IClassFixture<WebApplicationFactory
     }
 
     [Fact]
+    public async Task Put_WithUnrecognizedHittingCategoryKey_ReturnsBadRequestAndDoesNotPersist()
+    {
+        var client = _factory.CreateClient();
+        var validSettings = new ScoringSettings(
+            new List<string> { "homeRuns" },
+            new List<string>(),
+            new Dictionary<string, int> { ["C"] = 1 });
+        var invalidSettings = new ScoringSettings(
+            new List<string> { "notARealCategory" },
+            new List<string>(),
+            new Dictionary<string, int> { ["C"] = 1 });
+
+        // Establish a known-good persisted state first, so this test's "did not persist"
+        // assertion holds regardless of what earlier tests sharing this factory did.
+        var seedResponse = await client.PutAsJsonAsync("/api/settings/scoring", validSettings);
+        Assert.Equal(HttpStatusCode.OK, seedResponse.StatusCode);
+
+        var putResponse = await client.PutAsJsonAsync("/api/settings/scoring", invalidSettings);
+        Assert.Equal(HttpStatusCode.BadRequest, putResponse.StatusCode);
+
+        var getResponse = await client.GetAsync("/api/settings/scoring");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var loaded = await getResponse.Content.ReadFromJsonAsync<ScoringSettings>();
+        Assert.Equal(new[] { "homeRuns" }, loaded!.HittingCategoryKeys);
+    }
+
+    [Fact]
+    public async Task Put_WithPitchingCategoryKeyPlacedInHittingList_ReturnsBadRequest()
+    {
+        var client = _factory.CreateClient();
+        var settings = new ScoringSettings(
+            new List<string> { "era" },
+            new List<string>(),
+            new Dictionary<string, int> { ["C"] = 1 });
+
+        var putResponse = await client.PutAsJsonAsync("/api/settings/scoring", settings);
+        Assert.Equal(HttpStatusCode.BadRequest, putResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GetAvailableCategories_ReturnsAllElevenKnownCategoriesWithGroups()
     {
         var client = _factory.CreateClient();

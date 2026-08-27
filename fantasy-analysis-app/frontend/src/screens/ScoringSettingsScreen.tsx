@@ -12,15 +12,18 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
   const [pitchingKeys, setPitchingKeys] = useState<string[]>([]);
   const [rosterSlots, setRosterSlots] = useState<[string, number][]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getAvailableScoringCategories(), getScoringSettings()]).then(([categories, settings]) => {
-      setAvailableCategories(categories);
-      if (!settings) return;
-      setHittingKeys(settings.hittingCategoryKeys);
-      setPitchingKeys(settings.pitchingCategoryKeys);
-      setRosterSlots(Object.entries(settings.rosterSlots));
-    });
+    Promise.all([getAvailableScoringCategories(), getScoringSettings()])
+      .then(([categories, settings]) => {
+        setAvailableCategories(categories);
+        if (!settings) return;
+        setHittingKeys(settings.hittingCategoryKeys);
+        setPitchingKeys(settings.pitchingCategoryKeys);
+        setRosterSlots(Object.entries(settings.rosterSlots));
+      })
+      .catch(() => setLoadError("Failed to load scoring categories. Please refresh the page."));
   }, []);
 
   function toggleCategory(keys: string[], setKeys: (v: string[]) => void, statKey: string, checked: boolean) {
@@ -110,6 +113,7 @@ export function ScoringSettingsScreen({ onSaved }: ScoringSettingsScreenProps) {
   return (
     <div>
       <h1>Scoring Settings</h1>
+      {loadError && <p role="alert">{loadError}</p>}
       {categoryCheckboxes("Hitting", "hitting", hittingKeys, setHittingKeys)}
       {categoryCheckboxes("Pitching", "pitching", pitchingKeys, setPitchingKeys)}
       {rosterSlotRows()}

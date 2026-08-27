@@ -71,4 +71,21 @@ describe("ScoringSettingsScreen", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("shows an alert instead of an empty form when the categories fetch fails", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/api/settings/scoring/categories")) {
+        return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ScoringSettingsScreen onSaved={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(/failed to load/i);
+
+    vi.unstubAllGlobals();
+  });
 });

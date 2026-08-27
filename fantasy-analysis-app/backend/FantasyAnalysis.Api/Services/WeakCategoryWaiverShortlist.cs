@@ -16,11 +16,27 @@ public class WeakCategoryWaiverShortlist
         IReadOnlyList<MlbPlayer> waiverPool,
         IReadOnlyDictionary<string, IReadOnlyList<StatLine>> statsByPlayerId)
     {
-        var weakCategoryKeys = standings.Standings
-            .Where(s => s.TeamName == yourTeamName)
-            .OrderByDescending(s => s.Rank)
-            .Take(WeakCategoryCount)
+        var yourStandings = standings.Standings.Where(s => s.TeamName == yourTeamName).ToList();
+        var presentCategoryKeys = yourStandings.Select(s => s.CategoryKey).ToHashSet();
+
+        // A category can be entirely absent from your team's rows because ComputeStandings excludes
+        // teams with no computable value in that category (e.g. zero innings pitched for ERA/WHIP/K9).
+        // That's the worst possible state - worse than any actual worst-rank finish - so any category
+        // scored elsewhere in this league's standings but missing for your team is prioritized first.
+        var missingCategoryKeys = standings.Standings
             .Select(s => s.CategoryKey)
+            .Distinct()
+            .Where(k => !presentCategoryKeys.Contains(k))
+            .ToList();
+
+        var worstRankedPresentKeys = yourStandings
+            .OrderByDescending(s => s.Rank)
+            .Select(s => s.CategoryKey)
+            .ToList();
+
+        var weakCategoryKeys = missingCategoryKeys
+            .Concat(worstRankedPresentKeys)
+            .Take(WeakCategoryCount)
             .ToList();
 
         var result = new Dictionary<string, IReadOnlyList<MlbPlayer>>();

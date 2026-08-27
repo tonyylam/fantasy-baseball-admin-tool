@@ -18,6 +18,17 @@ public static class ScoringSettingsEndpoints
 
         app.MapPut("/api/settings/scoring", (ScoringSettings settings, IScoringSettingsStore store) =>
         {
+            var invalidKeys = settings.HittingCategoryKeys
+                .Where(k => !RotoCategoryReference.Categories.TryGetValue(k, out var def) || def.Group != "hitting")
+                .Concat(settings.PitchingCategoryKeys
+                    .Where(k => !RotoCategoryReference.Categories.TryGetValue(k, out var def) || def.Group != "pitching"))
+                .ToList();
+
+            if (invalidKeys.Count > 0)
+            {
+                return Results.BadRequest(new { error = $"Unknown or mismatched category key(s): {string.Join(", ", invalidKeys)}" });
+            }
+
             store.Save(settings);
             return Results.Ok(settings);
         });

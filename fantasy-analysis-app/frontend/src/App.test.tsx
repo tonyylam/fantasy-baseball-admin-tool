@@ -93,6 +93,9 @@ describe("App", () => {
       if (url.includes("/api/league") && !url.includes("import")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(league) });
       }
+      if (url.includes("/api/settings/scoring/categories")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
       if (url.includes("/api/settings/scoring") && init?.method === "PUT") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(settings) });
       }

@@ -99,6 +99,31 @@ public class WeakCategoryWaiverShortlistTests
     }
 
     [Fact]
+    public void ShortlistForWeakCategories_TeamWithNoRowForACategory_TreatsItAsWeakerThanAnyPresentRank()
+    {
+        // YourTeam has present rows for stolenBases and whip, both with mediocre (not worst) ranks,
+        // but is entirely missing a row for "era" - simulating zero innings pitched excluding them
+        // from that category. Another team has an "era" row, so "era" is a real scored category in
+        // this league; YourTeam's absence from it must still surface as weak (worse than any present rank).
+        var entries = new List<TeamCategoryStanding>
+        {
+            new(YourTeam, "stolenBases", 0m, Rank: 5m, RotoPoints: 5),
+            new(YourTeam, "whip", 0m, Rank: 6m, RotoPoints: 6),
+            new("Other Team", "era", 0m, Rank: 1m, RotoPoints: 10)
+        };
+        var standings = new RotoStandings(entries);
+        var pool = new List<MlbPlayer> { new("1", "Waiver Arm", "SP", true, 108) };
+        var stats = new Dictionary<string, IReadOnlyList<StatLine>>
+        {
+            ["1"] = new List<StatLine> { new("1", 2026, "pitching", new Dictionary<string, decimal> { ["earnedRuns"] = 20m, ["inningsPitched"] = 100m }) }
+        };
+
+        var shortlist = new WeakCategoryWaiverShortlist().ShortlistForWeakCategories(standings, YourTeam, pool, stats);
+
+        Assert.Contains("era", shortlist.Keys);
+    }
+
+    [Fact]
     public void ShortlistForWeakCategories_FewerCandidatesThanTheCap_ReturnsAllAvailableWithoutError()
     {
         var standings = StandingsWithWeakCategories("homeRuns");

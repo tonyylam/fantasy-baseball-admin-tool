@@ -22,7 +22,12 @@ public class FileScoringSettingsStore : IScoringSettingsStore
     public ScoringSettings? Load()
     {
         if (!File.Exists(SettingsPath)) return null;
-        return JsonSerializer.Deserialize<ScoringSettings>(File.ReadAllText(SettingsPath), JsonOptions);
+        var settings = JsonSerializer.Deserialize<ScoringSettings>(File.ReadAllText(SettingsPath), JsonOptions);
+        if (settings is null || settings.HittingCategoryKeys is null || settings.PitchingCategoryKeys is null || settings.RosterSlots is null)
+        {
+            return null;
+        }
+        return settings;
     }
 
     public void Save(ScoringSettings settings)

@@ -27,6 +27,42 @@ public class FileScoringSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_WhenFileIsPreMigrationShape_ReturnsNullInsteadOfBrokenObject()
+    {
+        // Exact shape of a real pre-migration scoring-settings.json saved by a user before
+        // ScoringSettings moved from hittingCategories/pitchingCategories (with statKey/pointsPerUnit)
+        // to HittingCategoryKeys/PitchingCategoryKeys. Deserializing this into the new record leaves
+        // both key lists null rather than throwing, so Load() must detect and reject it explicitly.
+        const string preMigrationJson = """
+        {
+          "hittingCategories": [
+            { "statKey": "Run", "pointsPerUnit": 1 },
+            { "statKey": "RBI", "pointsPerUnit": 1 },
+            { "statKey": "SLG", "pointsPerUnit": 1 },
+            { "statKey": "OBP", "pointsPerUnit": 1 },
+            { "statKey": "HR", "pointsPerUnit": 1 },
+            { "statKey": "SB", "pointsPerUnit": 1 }
+          ],
+          "pitchingCategories": [
+            { "statKey": "Wins", "pointsPerUnit": 1 },
+            { "statKey": "Saves", "pointsPerUnit": 1 },
+            { "statKey": "ERA", "pointsPerUnit": 1 },
+            { "statKey": "K/9", "pointsPerUnit": 1 },
+            { "statKey": "WHIP", "pointsPerUnit": 1 },
+            { "statKey": "Quality Starts", "pointsPerUnit": 1 }
+          ],
+          "rosterSlots": {
+            "21": 6
+          }
+        }
+        """;
+        File.WriteAllText(Path.Combine(_tempDir, "scoring-settings.json"), preMigrationJson);
+        var store = new FileScoringSettingsStore(_tempDir);
+
+        Assert.Null(store.Load());
+    }
+
+    [Fact]
     public void SaveAndLoad_RoundTrips()
     {
         var store = new FileScoringSettingsStore(_tempDir);
