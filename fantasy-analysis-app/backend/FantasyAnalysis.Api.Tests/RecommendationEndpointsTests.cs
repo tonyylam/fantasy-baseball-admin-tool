@@ -132,4 +132,50 @@ public class RecommendationEndpointsTests : IClassFixture<WebApplicationFactory<
         Assert.True(body.TryGetProperty("error", out var errorProp));
         Assert.False(string.IsNullOrWhiteSpace(errorProp.GetString()));
     }
+
+    [Fact]
+    public async Task Refresh_WhenClaudeRequestFailsWithAnInnerException_IncludesTheInnerExceptionDetailInTheResponse()
+    {
+        // AnthropicRecommendationClient wraps every exception from the underlying API call in a
+        // RecommendationClientException with a generic top-level message, preserving the real
+        // cause (e.g. "credit balance is too low") only as InnerException - the endpoint must
+        // surface that inner detail, or the only thing distinguishing "out of API credits" from
+        // any other failure is lost between the backend and the user.
+        var league = new League(
+            System.DateTimeOffset.UtcNow,
+            new List<TeamRoster> { new("Rhino Wranglers", new List<RosteredPlayer>()) });
+        var leagueStore = new FakeLeagueDataStore();
+        leagueStore.SaveLeague(league);
+        var settings = new ScoringSettings(new List<string>(), new List<string>(), new Dictionary<string, int>());
+
+        var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<ILeagueDataStore>(leagueStore);
+                services.AddSingleton<IScoringSettingsStore>(new FakeScoringSettingsStore(settings));
+                services.AddSingleton<IStatsProvider>(new FakeStatsProvider(new List<MlbPlayer>()));
+                services.AddSingleton<IStatsCache>(new FakeStatsCache());
+                services.AddSingleton<IRecommendationDataStore>(new FakeRecommendationDataStore());
+                services.AddSingleton<IRecommendationClient>(new ThrowingRecommendationClient());
+            });
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/api/recommendations/refresh?teamName=Rhino+Wranglers", null);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var error = body.GetProperty("error").GetString();
+        Assert.Contains("Failed to get recommendations from Claude.", error);
+        Assert.Contains("credit balance is too low", error);
+    }
+
+    private class ThrowingRecommendationClient : IRecommendationClient
+    {
+        public Task<string> GetRecommendationsJsonAsync(string systemPrompt, string userPrompt) =>
+            throw new RecommendationClientException(
+                "Failed to get recommendations from Claude.",
+                new InvalidOperationException("Status Code: BadRequest - Your credit balance is too low to access the Anthropic API."));
+    }
 }

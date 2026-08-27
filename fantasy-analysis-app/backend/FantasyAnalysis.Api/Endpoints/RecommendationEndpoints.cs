@@ -24,7 +24,8 @@ public static class RecommendationEndpoints
             }
             catch (RecommendationClientException ex)
             {
-                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
+                var detail = ex.InnerException is null ? ex.Message : $"{ex.Message} {ex.InnerException.Message}";
+                return Results.Json(new { error = detail }, statusCode: StatusCodes.Status502BadGateway);
             }
             catch (Exception ex)
             {
