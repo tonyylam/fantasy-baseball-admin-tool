@@ -40,6 +40,7 @@ export function DashboardScreen({ league, yourTeamName }: DashboardScreenProps) 
     setAnalyzing(true);
     setError(null);
     setSelected(null);
+    setRecommendations(null);
     try {
       const result = await refreshRecommendations(yourTeamName);
       setRecommendations(result);
@@ -68,40 +69,46 @@ export function DashboardScreen({ league, yourTeamName }: DashboardScreenProps) 
   return (
     <div>
       <h1>{yourTeamName} Dashboard</h1>
-      <section>
-        <h2>Your Roster</h2>
-        <ul>
-          {yourTeam?.players.map((p) => (
-            <li key={p.playerId}>{p.playerFullName}</li>
-          ))}
-        </ul>
-      </section>
-
       <button onClick={handleAnalyze} disabled={analyzing}>
         {analyzing ? "Analyzing... (this can take a couple minutes on a cold cache)" : "Analyze"}
       </button>
       {error && <p role="alert">{error}</p>}
 
-      {recommendations && (
-        <>
-          {suggestionList("Waiver Suggestions", recommendations.waiverSuggestions)}
-          {suggestionList("Trade Suggestions", recommendations.tradeSuggestions)}
-        </>
-      )}
-
-      {selected && (
-        <aside>
-          <h3>{selected.summary}</h3>
-          <p>{selected.reasoning}</p>
+      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start" }}>
+        <section style={{ flex: "1 1 30%" }}>
+          <h2>Your Roster</h2>
           <ul>
-            {selected.citations.map((c) => (
-              <li key={c}>
-                <a href={c}>{c}</a>
-              </li>
+            {yourTeam?.players.map((p) => (
+              <li key={p.playerId}>{p.playerFullName}</li>
             ))}
           </ul>
-        </aside>
-      )}
+        </section>
+
+        <section style={{ flex: "2 1 60%" }}>
+          {analyzing && <p>Generating suggestions... this can take a couple minutes.</p>}
+
+          {recommendations && (
+            <>
+              {suggestionList("Waiver Suggestions", recommendations.waiverSuggestions)}
+              {suggestionList("Trade Suggestions", recommendations.tradeSuggestions)}
+            </>
+          )}
+
+          {selected && (
+            <aside>
+              <h3>{selected.summary}</h3>
+              <p>{selected.reasoning}</p>
+              <ul>
+                {selected.citations.map((c) => (
+                  <li key={c}>
+                    <a href={c}>{c}</a>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
